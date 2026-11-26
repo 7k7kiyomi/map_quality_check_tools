@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--自然村图层质检方案-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：要素层缺失检查（ID:101） -->
+        <check_item>
+            <name>要素层缺失检查</name>
+            <id>101</id>
+            <severity>中</severity>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>要素层缺失检查中库体数据缓冲区半径</description>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+        </check_item>
+        <!-- 质检项2：关系检查（ID:113） -->
+        <check_item>
+            <name>关系检查</name>
+            <id>113</id>
+            <severity>中</severity>
+            <rule>
+                <name>具体项</name>
+                <description>关系检查的具体项</description>
+                <value>行政面包含检查</value>
+            </rule>
+            <rule>
+                <name>行政面包含检查关联图层</name>
+                <description>自然村的关系检查需要关联的图层</description>
+                <value>行政区划面普色</value>
+            </rule>
+        </check_item>
+        <!-- 质检项3：标准图例匹配检查（ID:304） -->
+        <check_item>
+            <name>标准图例匹配检查</name>
+            <id>304</id>
+            <severity>高</severity>
+            <rule>
+                <name>标准图例匹配检查</name>
+                <description>图层与标准图例是否一致</description>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

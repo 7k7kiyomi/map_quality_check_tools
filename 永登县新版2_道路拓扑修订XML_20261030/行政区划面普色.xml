@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--行政区划面普色检查质检方案-->
+<check_list>
+	<scale>
+		<value></value>
+		<!-- 质检项1：行政区划面颜色检查（ID:306） -->
+		<check_item>
+			<name>行政区划面颜色检查</name>
+			<id>306</id>
+			<severity>高</severity>
+			<rule>
+				<name>颜色</name>
+				<description>颜色个数</description>
+				<value>4</value>
+			</rule>
+		</check_item>
+		<!-- 质检项2：飞地漏绘检查（ID:117） -->
+		<check_item>
+			<id>117</id>
+			<severity>高</severity>
+			<name>飞地漏绘检查</name>
+			<rule>
+				<name>名称字段</name>
+				<description>GDB行政区名称字段，飞地以"属"前缀区分</description>
+				<value>NAME</value>
+			</rule>
+			<rule>
+				<name>行政编码字段</name>
+				<description>GDB中行政区编码字段名（PAC），取前6位与嗅探值比对</description>
+				<value>PAC</value>
+			</rule>
+			<rule>
+				<name>行政编码值</name>
+				<description>目标辖区编码值，由对话框界面输入覆盖</description>
+				<value></value>
+			</rule>
+			<rule>
+				<name>搜索半径</name>
+				<description>飞地中心点缓冲容差半径，用于吸收制图移位误差</description>
+				<value>5</value>
+				<unit>mm</unit>
+			</rule>
+			<rule>
+				<name>最小面积</name>
+				<description>最小飞地面积（平方毫米），过滤过小飞地</description>
+				<value>10</value>
+				<unit>平方毫米</unit>
+			</rule>
+			<rule>
+				<name>成果图层名称</name>
+				<description>成果SHP图层名称，用于报告显示</description>
+				<value>行政区划面</value>
+			</rule>
+		</check_item>
+		<!-- 质检项3：行政区划设色检查（ID:312） -->
+		<check_item>
+			<id>312</id>
+			<severity>高</severity>
+			<name>行政区划设色检查</name>
+			<rule>
+				<name>最大颜色数</name>
+				<description>允许使用的最大颜色种类数量，超出或不足均判为设色错误</description>
+				<value>4</value>
+				<unit>种</unit>
+			</rule>
+			<rule>
+				<name>最大单色占比</name>
+				<description>单一颜色要素数量占总要素数量的最大允许占比</description>
+				<value>0.3</value>
+				<unit>%</unit>
+			</rule>
+			<rule>
+				<name>最大单色面积占比</name>
+				<description>单一颜色面积占总面积的最大允许占比</description>
+				<value>0.45</value>
+				<unit>%</unit>
+			</rule>
+			<rule>
+				<name>颜色均匀度阈值</name>
+				<description>最大单色占比与最小单色占比差值的允许上限</description>
+				<value>0.2</value>
+				<unit>%</unit>
+			</rule>
+			<rule>
+				<name>大面积政区面积阈值</name>
+				<description>判定大面积政区的面积阈值，超过则须使用浅色系</description>
+				<value>500000</value>
+				<unit>平方米</unit>
+			</rule>
+			<rule>
+				<name>浅色系RGB阈值</name>
+				<description>浅色系颜色的 R、G、B 最小要求值（如 150,150,150）</description>
+				<value>150,150,150</value>
+			</rule>
+			<rule>
+				<name>颜色对比阈值</name>
+				<description>相邻政区颜色判为同一基色的 RGB 容差，同色即判冲突</description>
+				<value>15</value>
+			</rule>
+			<rule>
+				<name>填充颜色字段</name>
+				<description>行政区划面中存储填充颜色的字段名</description>
+				<value>fill_color</value>
+			</rule>
+		</check_item>
+	</scale>
+</check_list>

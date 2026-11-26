@@ -1,0 +1,258 @@
+[
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (context.value(QStringLiteral(\"result_err_exist\")).toBool()"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            && (mapName.isEmpty() || context.contains(QStringLiteral(\"small_name\"))"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                || context.value(QStringLiteral(\"left_name\")).toString() == mapName)) ++errorPairs;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    // Same-scale pairs retain the configuration direction: left is the main map."
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    // Cross-scale groups have their own output semantics and are not reassigned."
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    auto mainOutputMap = [&](const QJsonObject& finding) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QJsonObject context = m_pairRunContext.value(finding.value(QStringLiteral(\"pair_name\")).toString());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (context.contains(QStringLiteral(\"small_name\")) || finding.contains(QStringLiteral(\"small_scale_sheet\")))"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            return QString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString configuredMain = context.value(QStringLiteral(\"left_name\")).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        return configuredMain.isEmpty() ? finding.value(QStringLiteral(\"left_sheet\")).toString() : configuredMain;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    auto belongsToOutputMap = [&](const QJsonObject& finding, const QString& mapName) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString mainMap = mainOutputMap(finding);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        return mainMap.isEmpty()"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            ? finding.value(QStringLiteral(\"left_sheet\")).toString() == mapName"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                || finding.value(QStringLiteral(\"right_sheet\")).toString() == mapName"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            : mainMap == mapName;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            const QString mainMap = mainOutputMap(err);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (!mainMap.isEmpty()) err[QStringLiteral(\"output_map\")] = mainMap;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString mainMap = mainOutputMap(err);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (!mainMap.isEmpty()) err[QStringLiteral(\"output_map\")] = mainMap;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        output.sheet = err.value(QStringLiteral(\"output_map\")).toString("
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            err.value(QStringLiteral(\"right_sheet\")).toString(err.value(QStringLiteral(\"left_sheet\")).toString()));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (belongsToOutputMap(err, targetMapName)) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (!belongsToOutputMap(err, targetMapName)) continue;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    };"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    };"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (belongsToOutputMap(err, mapName)) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (belongsToOutputMap(finding, mapName)) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            const bool mainMapOwnsFinding = mainOutputMap(err) == mapName;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            // A missing main-map counterpart still needs one marker under the main"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            // map. Use the saved problem point, or a point on the available source."
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (originalOutputCountAfter == originalOutputCountBefore && mainMapOwnsFinding && !hasPoint) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                for (const QString& side : {QStringLiteral(\"left\"), QStringLiteral(\"right\")}) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    QgsVectorLayer* source = sourceLayerForPath(err.value(side + QStringLiteral(\"_shp_path\")).toString());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    bool fidOk = false;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    const QgsFeatureId fid = err.value(side + QStringLiteral(\"_fid\")).toString().toLongLong(&fidOk);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    if (!source || !fidOk) continue;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    const QgsFeature feature = source->getFeature(fid);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    if (!feature.isValid() || !feature.hasGeometry()) continue;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    QgsGeometry geometry = feature.geometry();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    const QString checkedWkt = err.value(side + QStringLiteral(\"_check_wkt\")).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    if (!checkedWkt.isEmpty()) geometry = QgsGeometry::fromWkt(checkedWkt);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    const QgsGeometry marker = geometry.pointOnSurface();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    if (marker.isNull() || marker.isEmpty()) continue;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    point = marker.asPoint();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    pointSource = side + QStringLiteral(\"_source_point\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    hasPoint = true;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                    break;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (originalOutputCountAfter == originalOutputCountBefore && hasPoint && (mainMapOwnsFinding || ownsSource || !hasAnySource)) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            }"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "        if (context.value(QStringLiteral(\"result_err_exist\")).toBool()) ++errorPairs;"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "        output.sheet = err.value(QStringLiteral(\"right_sheet\")).toString(err.value(QStringLiteral(\"left_sheet\")).toString());"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            QString leftSheet = err.value(QStringLiteral(\"left_sheet\")).toString();"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            QString rightSheet = err.value(QStringLiteral(\"right_sheet\")).toString();"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            if (leftSheet == targetMapName || rightSheet == targetMapName) {"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            if (err.value(QStringLiteral(\"left_sheet\")).toString() != targetMapName"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                && err.value(QStringLiteral(\"right_sheet\")).toString() != targetMapName) continue;"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            if (err.value(QStringLiteral(\"left_sheet\")).toString() == mapName ||"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                err.value(QStringLiteral(\"right_sheet\")).toString() == mapName) {"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            if (finding.value(QStringLiteral(\"left_sheet\")).toString() == mapName"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                || finding.value(QStringLiteral(\"right_sheet\")).toString() == mapName) {"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            if (originalOutputCountAfter == originalOutputCountBefore && hasPoint && (ownsSource || !hasAnySource)) {"
+  }
+]

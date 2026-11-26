@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 公路隧道要素冗余检查规则；ID=119；配合要素冗余检查算法使用。 -->
+<check_list>
+    <scale>
+        <value></value>
+        <check_item>
+            <name>要素冗余检查</name>
+            <id>119</id>
+            <severity>高</severity>
+            <rule>
+                <name>检查类型</name>
+                <description></description>
+                <value>隧道</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>检查图层</name>
+                <description></description>
+                <value>公路隧道</value>
+                <unit></unit>
+            </rule>
+            <rule><name>承载道路成果图层</name><description>连接关系仅使用成果承载道路</description><value>公路;高速公路;快速路;国道;省道;县道;乡道;专用公路;连接道;村道</value><unit></unit></rule>
+            <rule><name>连接段类型字段</name><description>成果明确标识连接段的字段</description><value>TYPE</value><unit></unit></rule>
+            <rule><name>连接段类型值</name><description>无法辨认连接段时只记录诊断</description><value>连接段</value><unit></unit></rule>
+<rule>
+<name>隧道归组条件</name>
+                <description>先排除自身长度不足的隧道；不得仅按欧氏距离合并不同道路或并行隧道</description>
+                <value>自身长度达标且同一载体线路上相邻的隧道</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>连接表示最大间隔</name>
+<description>仅对自身长度达标的隧道，沿同一载体计算相邻端点之间的实际间隔；不扣除中间短隧道占用的距离</description>
+                <value>1000</value>
+                <unit>米</unit>
+            </rule>
+            <rule>
+                <name>连接间隔比较符</name>
+                <description></description>
+                <value>&lt;=</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>长度判定顺序</name>
+<description>按最新确认口径，连接段不能帮助短隧道达到表示门槛</description>
+                <value>先判断每条完整隧道自身长度，再检查达标隧道之间的连接</value>
+                <unit></unit>
+            </rule>
+            <rule>
+<name>长度计算依据</name>
+                <description>直接测量解析成果线；仅按成果自身标识组合，明确连接段单独判定；不读取GDB隧道几何</description>
+                <value>解析成果SHP隧道实际几何长度按任务比例尺换算</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>最小表示长度</name>
+<description>每条完整隧道自身小于门槛而仍表示为冗余；等于门槛允许表示，连接组总长不改变此结论</description>
+                <value>5</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>最小长度比较符</name>
+                <description></description>
+                <value>&gt;=</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>禁止表示项</name>
+                <description></description>
+<value>自身长度短于最小表示长度却仍表示的隧道;超过最大连接间隔仍绘成隧道的连接段</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>检查范围</name>
+                <description>条件完整时，必须连接但未表示输出connection_missing正式缺失错误</description>
+                <value>成果自身长度与实际沿线连接资格双向核对</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>候选匹配搜索半径</name>
+                <description>建议初值，须据数据校准；不得放宽业务阈值</description>
+                <value>2</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>匹配不确定处理</name>
+                <description>匹配不唯一、属性未知、输入不完整时不自动判错</description>
+                <value>人工复核</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>比例尺来源</name>
+                <description>scale/value 空值表示通用规则</description>
+                <value>当前质检任务</value>
+                <unit></unit>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>
+

@@ -1,0 +1,527 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PreprocessDialog</class>
+ <widget class="QDialog" name="PreprocessDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>650</width>
+    <height>532</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>地图数据预处理工具</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tab_MapPreprocess">
+      <attribute name="title">
+       <string>地图预处理</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_MapTab">
+       <item>
+        <widget class="QGroupBox" name="groupBox_Map">
+         <property name="title">
+          <string>地图数据处理</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_Map">
+          <item>
+           <widget class="QLabel" name="label_Step1">
+            <property name="text">
+             <string>&lt;b&gt;步骤一: 选择GeoPDF文件&lt;/b&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QGridLayout" name="gridLayout_GeoPDF">
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_PDFPaths">
+              <property name="text">
+               <string>PDF路径:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QListWidget" name="listWidget_PDFPaths">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>100</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <layout class="QVBoxLayout" name="verticalLayout_PDFButtons">
+              <item>
+               <widget class="QPushButton" name="pushButton_AddPDF">
+                <property name="text">
+                 <string>添加PDF</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_RemovePDF">
+                <property name="text">
+                 <string>移除选中</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_ClearPDF">
+                <property name="text">
+                 <string>清空列表</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_Step2">
+            <property name="text">
+             <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;步骤二: 选择源GBD数据 (可选)&lt;/span&gt;&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QVBoxLayout" name="verticalLayout_SourceData">
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_SourceType">
+              <item>
+               <widget class="QLabel" name="label_SourceType">
+                <property name="text">
+                 <string>数据来源:</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radioButton_SourceGDB">
+                <property name="text">
+                 <string>本地 GDB</string>
+                </property>
+                <property name="checked">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QRadioButton" name="radioButton_SourcePostgis">
+                <property name="text">
+                 <string>PostGIS 数据库</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <spacer name="horizontalSpacer_SourceType">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <widget class="QWidget" name="widget_SourceDataPages">
+              <property name="styleSheet">
+               <string notr="true">QWidget#widget_SourceDataPages,
+QWidget#page_SourceGDB,
+QWidget#page_SourcePostgis {
+    background-color: transparent;
+    border: none;
+}</string>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_SourceDataPages">
+               <property name="leftMargin">
+                <number>0</number>
+               </property>
+               <property name="topMargin">
+                <number>0</number>
+               </property>
+               <property name="rightMargin">
+                <number>0</number>
+               </property>
+               <property name="bottomMargin">
+                <number>0</number>
+               </property>
+               <item>
+                <widget class="QWidget" name="page_SourceGDB">
+               <layout class="QGridLayout" name="gridLayout_GDB_Source">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item row="0" column="0">
+                 <widget class="QLabel" name="label_SourceGDB">
+                  <property name="text">
+                   <string>源GDB数据:</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="1">
+                 <widget class="QLineEdit" name="lineEdit_SourceGDB">
+                  <property name="placeholderText">
+                   <string>若需裁剪GDB, 请选择完整的全区GDB数据源...</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="0" column="2">
+                 <widget class="QPushButton" name="pushButton_BrowseSourceGDB">
+                  <property name="text">
+                   <string>浏览...</string>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+                </widget>
+               </item>
+               <item>
+                <widget class="QWidget" name="page_SourcePostgis">
+               <layout class="QVBoxLayout" name="verticalLayout_PostgisSource">
+                <property name="leftMargin">
+                 <number>0</number>
+                </property>
+                <property name="topMargin">
+                 <number>0</number>
+                </property>
+                <property name="rightMargin">
+                 <number>0</number>
+                </property>
+                <property name="bottomMargin">
+                 <number>0</number>
+                </property>
+                <item>
+                 <layout class="QHBoxLayout" name="horizontalLayout_PostgisConnection">
+                  <item>
+                   <widget class="QPushButton" name="pushButton_ConnectPostgis">
+                    <property name="text">
+                     <string>连接数据库...</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <widget class="QLabel" name="label_PostgisConnectionStatus">
+                    <property name="styleSheet">
+                     <string>color: #666666;</string>
+                    </property>
+                    <property name="text">
+                     <string>未连接数据库</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item>
+                   <spacer name="horizontalSpacer_PostgisConnection">
+                    <property name="orientation">
+                     <enum>Qt::Horizontal</enum>
+                    </property>
+                    <property name="sizeHint" stdset="0">
+                     <size>
+                      <width>40</width>
+                      <height>20</height>
+                     </size>
+                    </property>
+                   </spacer>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <layout class="QGridLayout" name="gridLayout_PostgisLayers">
+                  <item row="0" column="0">
+                   <widget class="QLabel" name="label_PostgisLayers">
+                    <property name="text">
+                     <string>数据图层:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="0" column="1">
+                   <widget class="QLineEdit" name="lineEdit_PostgisLayers">
+                    <property name="readOnly">
+                     <bool>true</bool>
+                    </property>
+                    <property name="placeholderText">
+                     <string>连接后自动处理当前 Schema 的全部空间图层...</string>
+                    </property>
+                   </widget>
+                  </item>
+                 </layout>
+                </item>
+                <item>
+                 <widget class="QLabel" name="label_PostgisDescription">
+                  <property name="styleSheet">
+                   <string>color: #666666; font-style: italic;</string>
+                  </property>
+                  <property name="text">
+                   <string>处理时将按每张GeoPDF的内图廓裁剪当前 Schema 下全部空间图层，并输出到对应的_gdb_shp文件夹。</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+               </layout>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_Step3">
+            <property name="text">
+             <string>&lt;b&gt;步骤三: 设置输出路径&lt;/b&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QGridLayout" name="gridLayout_Output">
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_PDFOutputPath">
+              <property name="text">
+               <string>输出路径:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="lineEdit_PDFOutputPath">
+              <property name="text">
+               <string>D:/Media/Desktop/preprocess_output</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QPushButton" name="pushButton_BrowsePDFOutput">
+              <property name="text">
+               <string>浏览...</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_ProcessDescription">
+            <property name="styleSheet">
+             <string>color: #666666; font-style: italic;</string>
+            </property>
+            <property name="text">
+             <string>说明: 本工具将执行PDF解析和可选的矢量数据裁剪。处理步骤固定为: 1. PDF转GeoJSON; 2. GeoJSON转SHP; 3. (若提供本地GDB或PostGIS数据源)按内图廓裁剪并导出SHP。</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_SymbolPreprocess">
+      <attribute name="title">
+       <string>符号库预处理</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_SymbolTab">
+       <item>
+        <widget class="QGroupBox" name="groupBox_Symbol">
+         <property name="title">
+          <string>符号库PDF处理</string>
+         </property>
+         <layout class="QVBoxLayout" name="verticalLayout_Symbol">
+          <item>
+           <widget class="QLabel" name="label_SymbolStep1">
+            <property name="text">
+             <string>&lt;b&gt;步骤一: 选择符号库PDF文件&lt;/b&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QGridLayout" name="gridLayout_SymbolPDF">
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_SymbolPDFPaths">
+              <property name="text">
+               <string>PDF路径:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QListWidget" name="listWidget_SymbolPDFPaths">
+              <property name="maximumSize">
+               <size>
+                <width>16777215</width>
+                <height>100</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <layout class="QVBoxLayout" name="verticalLayout_SymbolPDFButtons">
+              <item>
+               <widget class="QPushButton" name="pushButton_AddSymbolPDF">
+                <property name="text">
+                 <string>添加PDF</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_RemoveSymbolPDF">
+                <property name="text">
+                 <string>移除选中</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="pushButton_ClearSymbolPDF">
+                <property name="text">
+                 <string>清空列表</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_SymbolStep2">
+            <property name="text">
+             <string>&lt;b&gt;步骤二: 设置输出路径&lt;/b&gt;</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <layout class="QGridLayout" name="gridLayout_SymbolOutput">
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_SymbolOutputPath">
+              <property name="text">
+               <string>输出路径:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="lineEdit_SymbolOutputPath">
+              <property name="text">
+               <string>D:/Media/Desktop/preprocess_output</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QPushButton" name="pushButton_BrowseSymbolOutput">
+              <property name="text">
+               <string>浏览...</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item>
+           <widget class="QLabel" name="label_SymbolDescription">
+            <property name="styleSheet">
+             <string>color: #666666; font-style: italic;</string>
+            </property>
+            <property name="text">
+             <string>说明: 本工具将处理符号库PDF, 依次执行AI解析、转Shapefile、图例名称匹配。输出结果将保存在指定路径的&quot;图例&quot;子目录中。</string>
+            </property>
+            <property name="wordWrap">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <spacer name="verticalSpacer_Symbol">
+            <property name="orientation">
+             <enum>Qt::Vertical</enum>
+            </property>
+            <property name="sizeHint" stdset="0">
+             <size>
+              <width>20</width>
+              <height>40</height>
+             </size>
+            </property>
+           </spacer>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QTextEdit" name="textEdit_Log">
+     <property name="readOnly">
+      <bool>true</bool>
+     </property>
+     <property name="placeholderText">
+      <string>处理日志信息将在此显示...</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QProgressBar" name="progressBar">
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_Buttons">
+     <item>
+      <spacer name="horizontalSpacer">
+       <property name="orientation">
+        <enum>Qt::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_StartProcess">
+       <property name="text">
+        <string>开始预处理</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_Cancel">
+       <property name="text">
+        <string>取消</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_Close">
+       <property name="text">
+        <string>关闭</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

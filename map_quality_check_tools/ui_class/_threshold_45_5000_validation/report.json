@@ -1,0 +1,17 @@
+{
+  "target": "D:\\Desktop\\LTZK\\图幅接边与跨比例尺检查\\502同系列跨比例尺表达检查.xml",
+  "backup": "F:\\map_quality_check_tools---20160108\\map_quality_check_tools\\ui_class\\_threshold_45_5000_validation\\502.before.xml",
+  "prepared": "F:\\map_quality_check_tools---20160108\\map_quality_check_tools\\ui_class\\_threshold_45_5000_validation\\502.modified.xml",
+  "original_sha256": "D7B1B117EEA66AA3F217990EA2A9D06575F8BD777AC279E25604FBC0D1089D02",
+  "modified_sha256": "E5FF6E16C39D4734F3FBDF64E8040F8E63834EB6161C29C0984182BCCB13D3A1",
+  "matched_threshold": 0.45,
+  "gap_mm": 16.666666666666668,
+  "small_scale": 300000,
+  "large_scale": 60000,
+  "gap_ground_m": 5000.0,
+  "changed_rules": [
+    "series_cross_scale_tolerance_profiles",
+    "series_cross_scale_matched_threshold"
+  ],
+  "validation": "PASS: XML and profile JSON parse, class overrides, unit conversion, unrelated rules unchanged"
+}

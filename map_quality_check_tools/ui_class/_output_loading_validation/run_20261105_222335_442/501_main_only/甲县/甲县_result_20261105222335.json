@@ -1,0 +1,94 @@
+{
+    "Geopdf": {
+        "info": {
+            "completed_num": 0,
+            "err_num": 1,
+            "tasks_num": 1,
+            "uncompleted_num": 1
+        },
+        "name": "甲县",
+        "tasks": {
+            "task1": {
+                "check_item1": {
+                    "err_exist": true,
+                    "errors": {
+                        "92d1b007051d101daebb62da308dbc71": {
+                            "decision_status": "confirmed_error",
+                            "description": "双侧要素接边测试",
+                            "err_id": "92d1b007051d101daebb62da308dbc71",
+                            "error_type": "line_edge_mismatch",
+                            "final_state": "confirmed",
+                            "layer": "道路",
+                            "left_fid": "0",
+                            "left_sheet": "甲县",
+                            "left_shp": "国道.shp",
+                            "left_shp_path": "F:/map_quality_check_tools---20160108/map_quality_check_tools/ui_class/_output_loading_validation/run_20261105_222335_442/国道.shp",
+                            "left_x": 0,
+                            "left_y": 0,
+                            "output_map": "甲县",
+                            "pair_name": "甲县 - 乙县",
+                            "point_source": "nearest_midpoint",
+                            "point_x": 2.5,
+                            "point_y": 2.5,
+                            "right_fid": "0",
+                            "right_sheet": "乙县",
+                            "right_shp": "国道.shp",
+                            "right_shp_path": "F:/map_quality_check_tools---20160108/map_quality_check_tools/ui_class/_output_loading_validation/run_20261105_222335_442/国道.shp",
+                            "right_x": 5,
+                            "right_y": 5,
+                            "stage": "auto",
+                            "sub_rule": "线要素接边容差"
+                        }
+                    },
+                    "id": "501",
+                    "info": {
+                        "confirmed_error_count": 1,
+                        "description": "本次1个任务中，0个完成，0个失败，0个部分完成，1个未执行；不能据此判定检查通过。",
+                        "error_count": 1,
+                        "execution_summary": {
+                            "description": "本次1个任务中，0个完成，0个失败，0个部分完成，1个未执行；不能据此判定检查通过。",
+                            "error_pair_count": 1,
+                            "executed_pair_count": 0,
+                            "failed_pair_count": 0,
+                            "pair_count": 1,
+                            "partial_pair_count": 0,
+                            "skipped_pair_count": 1,
+                            "status": "未执行"
+                        },
+                        "needs_review_count": 1,
+                        "not_evaluable_count": 0,
+                        "summary": "本次1个任务中，0个完成，0个失败，0个部分完成，1个未执行；不能据此判定检查通过。"
+                    },
+                    "name": "图幅接边与系列化表达",
+                    "review_errors": {
+                        "d19cedbfe1704ad5004db6433188faa7": {
+                            "decision_status": "needs_review",
+                            "description": "双侧要素接边测试",
+                            "err_id": "d19cedbfe1704ad5004db6433188faa7",
+                            "error_type": "unmatched_review",
+                            "layer": "道路",
+                            "left_fid": "0",
+                            "left_sheet": "甲县",
+                            "left_shp": "国道.shp",
+                            "left_shp_path": "F:/map_quality_check_tools---20160108/map_quality_check_tools/ui_class/_output_loading_validation/run_20261105_222335_442/国道.shp",
+                            "left_x": 0,
+                            "left_y": 0,
+                            "output_map": "甲县",
+                            "pair_name": "甲县 - 乙县",
+                            "right_fid": "0",
+                            "right_sheet": "乙县",
+                            "right_shp": "国道.shp",
+                            "right_shp_path": "F:/map_quality_check_tools---20160108/map_quality_check_tools/ui_class/_output_loading_validation/run_20261105_222335_442/国道.shp",
+                            "right_x": 5,
+                            "right_y": 5,
+                            "stage": "auto",
+                            "sub_rule": "线要素接边容差"
+                        }
+                    },
+                    "status": "未执行"
+                },
+                "layer_name": "道路"
+            }
+        }
+    }
+}

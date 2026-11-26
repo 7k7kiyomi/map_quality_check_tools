@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ScaleCheckerDialogClass</class>
+ <widget class="QDialog" name="ScaleCheckerDialogClass">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>705</width>
+    <height>531</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>数字比例尺数值准确性</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QLabel" name="statusLabel">
+     <property name="text">
+      <string>请加载所需的SHP文件并点击检查：</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="2">
+    <widget class="QPushButton" name="checkButton">
+     <property name="text">
+      <string>检查</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="0">
+    <widget class="QLabel" name="label">
+     <property name="text">
+      <string>运行日志：</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="1">
+    <spacer name="horizontalSpacer">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>363</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="1" column="0" colspan="3">
+    <widget class="QGroupBox" name="groupBox_2">
+     <property name="title">
+      <string>加载图例SHP文件</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_2">
+      <item row="0" column="0">
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QLineEdit" name="shpFilePathEdit"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="loadShpButton">
+          <property name="text">
+           <string>浏览</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="2" column="0" colspan="3">
+    <widget class="QGroupBox" name="groupBox_3">
+     <property name="title">
+      <string>加载内图廓SHP文件</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_3">
+      <item row="0" column="0">
+       <layout class="QHBoxLayout" name="horizontalLayout_3">
+        <item>
+         <widget class="QLineEdit" name="pdfFilePathEdit"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="loadGeoPdfButton">
+          <property name="text">
+           <string>浏览</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item row="5" column="0" colspan="3">
+    <widget class="QTextEdit" name="logTextEdit"/>
+   </item>
+   <item row="6" column="0" colspan="3">
+    <widget class="QGroupBox" name="groupBox_4">
+     <property name="title">
+      <string>结果日志输出</string>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_4">
+      <item row="0" column="0">
+       <layout class="QHBoxLayout" name="horizontalLayout_4">
+        <item>
+         <widget class="QLineEdit" name="jsonFilePathEdit"/>
+        </item>
+        <item>
+         <widget class="QPushButton" name="loadjsonButton">
+          <property name="text">
+           <string>浏览</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources/>
+ <connections/>
+</ui>

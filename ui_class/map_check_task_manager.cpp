@@ -1,0 +1,4305 @@
+﻿#include "map_check_task_manager.h"
+#include "map_check_algorithms.h"
+#include "point_isolation_output.h"
+#include "redundancy_output_paths.h"
+#include "quality_result_layer_group.h"
+#include "line_topology_shared_tasks.h"
+#include "right_angle_shared_tasks.h"
+#include "water_result_classification.h"
+#include "check_result_replacement.h"
+#include "map_check_task_manager.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
+#include <QTextStream>
+#include <QTextCodec>
+#include <QFileDialog>
+#include <QMessageBox>
+#include <QTableWidgetItem>
+#include <QDomElement>
+#include <QDir>
+#include <QDateTime>
+#include <QContextMenuEvent>
+#include <QMenu>
+#include <QlistView>
+#include< QDirIterator>
+#include <QTextStream>
+#include <QDebug>
+#include <QCoreApplication>
+#include <QThread>
+#include <QFrame>
+#include <QScrollArea>
+#include <QSizePolicy>
+#include <stdexcept>
+#include <QSettings>
+#include <QSet>
+#include <QFileInfo>
+#include <QJsonValue>
+#include <QTimer>
+#include <QRegularExpression>
+#include <algorithm>
+#include <QPushButton>
+#include <QApplication>
+#include <QCryptographicHash>
+#include <QSaveFile>
+#include <QStandardPaths>
+#include <QTemporaryDir>
+#include <memory>
+#include <qgsproject.h>
+#include <qgsfeature.h>
+#include <qgsgeometry.h>
+#include <qgsfield.h>
+#include <qgsfields.h>
+#include <qgsvectorfilewriter.h>
+#include <qgsvectordataprovider.h>
+#include <qgsvectorlayer.h>
+#include <qgswkbtypes.h>
+#include <gdal_priv.h>
+#include <ogrsf_frmts.h>
+#include <cpl_string.h>
+#include "Drawing_Layout.h"
+
+using namespace std;
+
+static bool isSeriesEdgeMatchItem(const QString& id, const QString& name)
+{
+    return id.trimmed() == QStringLiteral("501")
+        || name.trimmed() == QStringLiteral("图幅接边与系列化表达");
+}
+
+// ReadShp/QGIS 检查会创建 QWidget 和 QGIS 对象，必须在 Qt 主线程执行。
+// 与开发人员提供的版本保持一致：仅三项旧 ReadShp 检查切换线程。
+static bool requiresGuiBoundCheck(const QString& checkItemName)
+{
+    const QString name = checkItemName.trimmed();
+    return name == QStringLiteral("线要素拓扑检查")
+        || name == QStringLiteral("几何走向异常检查")
+        || name == QStringLiteral("直角化角度阈值控制");
+}
+
+static void runAlgorithmWithThreadAffinity(
+    const QString& checkItemName,
+    const AlgorithmFunc& algorithm,
+    const AlgorithmFilePaths& filePaths,
+    int scale,
+    const QString& outputDir,
+    CheckItemResult& result)
+{
+    QCoreApplication* application = QCoreApplication::instance();
+    const bool pointIsolation=checkItemName.trimmed()==QStringLiteral("点要素孤立检查");
+    const bool featureRedundancy=checkItemName.trimmed()==QStringLiteral("要素冗余检查");
+    if ((pointIsolation||featureRedundancy) && !outputDir.trimmed().isEmpty()) {
+        // Release providers on the GUI thread before the algorithm removes its old shapefiles.
+        const auto unloadPrevious = [&]() {
+            QgsProject* project = QgsProject::instance();
+            if (!project) return;
+            const auto layers = project->mapLayers();
+            for (QgsMapLayer* layer : layers) {
+                auto* vector = qobject_cast<QgsVectorLayer*>(layer);
+                if (vector) {
+                    const QString source=vector->source().section(QLatin1Char('|'),0,0);
+                    const bool owned=pointIsolation
+                        ? PointIsolationOutput::ownsFile(source,outputDir,filePaths.standardLayer)
+                        : RedundancyOutput::ownsFile(source,outputDir,filePaths.standardLayer);
+                    if (owned) project->removeMapLayer(vector->id());
+                }
+            }
+        };
+        if (!application || QThread::currentThread() == application->thread()) unloadPrevious();
+        else if (!QMetaObject::invokeMethod(application, unloadPrevious, Qt::BlockingQueuedConnection))
+            throw std::runtime_error("failed to unload previous check result layers on Qt main thread");
+    }
+    if (!requiresGuiBoundCheck(checkItemName) || !application ||
+        QThread::currentThread() == application->thread()) {
+        algorithm(checkItemName, filePaths, scale, outputDir, result);
+        return;
+    }
+
+    const bool invoked = QMetaObject::invokeMethod(
+        application,
+        [&]() { algorithm(checkItemName, filePaths, scale, outputDir, result); },
+        Qt::BlockingQueuedConnection);
+    if (!invoked) {
+        throw std::runtime_error("failed to dispatch GUI-bound check to Qt main thread");
+    }
+}
+
+static QString commonSnapshotDir(const QStringList& paths)
+{
+    if (paths.isEmpty()) return QString();
+    QString common = QDir::cleanPath(paths.first());
+    for (const QString& raw : paths) {
+        const QString path = QDir::cleanPath(raw);
+        while (!common.isEmpty() && !path.startsWith(common, Qt::CaseInsensitive)) {
+            const QString parent = QFileInfo(common).path();
+            if (parent == common) { common.clear(); break; }
+            common = parent;
+        }
+    }
+    return common;
+}
+
+// XML 中的严重程度固定为“高 / 中 / 低”。未配置或配置异常时，为保持
+// 总 JSON 结构完整，按“未配置”输出。
+static QString normalizedSeverity(const QString& severity)
+{
+    const QString value = severity.trimmed();
+    if (value == QStringLiteral("高") || value == QStringLiteral("中") || value == QStringLiteral("低")) {
+        return value;
+    }
+    return QStringLiteral("未配置");
+}
+
+static QString severityFolderName(const QString& severity)
+{
+    const QString normalized = normalizedSeverity(severity);
+    return normalized == QStringLiteral("高") || normalized == QStringLiteral("中")
+        || normalized == QStringLiteral("低")
+        ? normalized + QStringLiteral("严重程度") : QString();
+}
+
+static QString safeOutputName(QString name)
+{
+    name = name.trimmed();
+    for (int i = 0; i < name.size(); ++i) {
+        const QChar ch = name.at(i);
+        if (QStringLiteral("<>:\"/\\|?*").contains(ch) || ch.isNull()) name[i] = QLatin1Char('_');
+    }
+    while (name.endsWith(QLatin1Char('.')) || name.endsWith(QLatin1Char(' '))) name.chop(1);
+    return name.isEmpty() ? QStringLiteral("未命名") : name;
+}
+
+static QString uniqueDescriptionFieldName(const OGRFeatureDefn* definition)
+{
+    QString candidate = QStringLiteral("CheckDesc");
+    int suffix = 2;
+    auto fieldExists = [definition](const QString& fieldName) {
+        for (int i = 0; i < definition->GetFieldCount(); ++i) {
+            if (QString::fromUtf8(definition->GetFieldDefn(i)->GetNameRef())
+                    .compare(fieldName, Qt::CaseInsensitive) == 0) return true;
+        }
+        return false;
+    };
+    while (fieldExists(candidate)) {
+        candidate = QStringLiteral("ChkD%1").arg(suffix++);
+    }
+    return candidate;
+}
+
+static int findFieldIndexCaseInsensitive(const OGRFeatureDefn* definition, const QString& fieldName)
+{
+    for (int i = 0; i < definition->GetFieldCount(); ++i) {
+        if (QString::fromUtf8(definition->GetFieldDefn(i)->GetNameRef())
+                .compare(fieldName, Qt::CaseInsensitive) == 0) return i;
+    }
+    return -1;
+}
+
+static QString normalizedFontFamily(QString value)
+{
+    return value.trimmed().toCaseFolded();
+}
+
+static QString normalizedFontColor(QString value)
+{
+    value = value.trimmed().toCaseFolded();
+    value.remove(QRegularExpression(QStringLiteral("\\s+")));
+    if (value.startsWith(QLatin1Char('#'))) value.remove(0, 1);
+    return value;
+}
+
+static bool writeAnnotationPrecheckErrors(const QString& sourcePath, const QString& outputPath,
+                                          int& totalFeatures, int& errorFeatures, int& typeErrorFeatures,
+                                          int& fontErrorFeatures,
+                                          QString& errorMessage, QStringList& warnings)
+{
+    GDALAllRegister();
+    GDALDataset* sourceDataset = static_cast<GDALDataset*>(GDALOpenEx(
+        sourcePath.toUtf8().constData(), GDAL_OF_VECTOR | GDAL_OF_READONLY, nullptr, nullptr, nullptr));
+    if (!sourceDataset) {
+        errorMessage = QStringLiteral("无法打开注记图层：%1").arg(sourcePath);
+        return false;
+    }
+
+    OGRLayer* sourceLayer = sourceDataset->GetLayer(0);
+    if (!sourceLayer || !sourceLayer->GetLayerDefn()) {
+        errorMessage = QStringLiteral("无法读取注记图层结构：%1").arg(sourcePath);
+        GDALClose(sourceDataset);
+        return false;
+    }
+
+    OGRFeatureDefn* sourceDefinition = sourceLayer->GetLayerDefn();
+    const int elementTypeIndex = findFieldIndexCaseInsensitive(sourceDefinition, QStringLiteral("element_ty"));
+    if (elementTypeIndex < 0) {
+        errorMessage = QStringLiteral("图层缺少 element_ty 字段：%1").arg(sourcePath);
+        GDALClose(sourceDataset);
+        return false;
+    }
+
+    const int fontFamilyIndex = findFieldIndexCaseInsensitive(sourceDefinition, QStringLiteral("font_family"));
+    const int fontColorIndex = findFieldIndexCaseInsensitive(sourceDefinition, QStringLiteral("font_color"));
+    const bool canCheckFontStyle = fontFamilyIndex >= 0 && fontColorIndex >= 0;
+    if (fontFamilyIndex < 0) warnings << QStringLiteral("缺少 font_family 字段，已跳过该图层字体检查");
+    if (fontColorIndex < 0) warnings << QStringLiteral("缺少 font_color 字段，已跳过该图层字体检查");
+
+    // 第一遍统计 text 要素的字体组合。只在主流组合超过有效样式的一半时自动判异。
+    QHash<QString, int> styleCounts;
+    int validStyleFeatureCount = 0;
+    if (canCheckFontStyle) {
+        sourceLayer->ResetReading();
+        OGRFeature* sourceFeature = nullptr;
+        while ((sourceFeature = sourceLayer->GetNextFeature()) != nullptr) {
+            QString typeValue;
+            if (sourceFeature->IsFieldSetAndNotNull(elementTypeIndex)) {
+                typeValue = QString::fromUtf8(sourceFeature->GetFieldAsString(elementTypeIndex)).trimmed();
+            }
+            if (typeValue.compare(QStringLiteral("text"), Qt::CaseInsensitive) == 0 &&
+                sourceFeature->IsFieldSetAndNotNull(fontFamilyIndex) &&
+                sourceFeature->IsFieldSetAndNotNull(fontColorIndex)) {
+                const QString family = normalizedFontFamily(QString::fromUtf8(sourceFeature->GetFieldAsString(fontFamilyIndex)));
+                const QString color = normalizedFontColor(QString::fromUtf8(sourceFeature->GetFieldAsString(fontColorIndex)));
+                if (!family.isEmpty() && !color.isEmpty()) {
+                    ++styleCounts[family + QChar(0x1f) + color];
+                    ++validStyleFeatureCount;
+                }
+            }
+            OGRFeature::DestroyFeature(sourceFeature);
+        }
+    }
+
+    QString dominantStyle;
+    int dominantStyleCount = 0;
+    for (auto it = styleCounts.constBegin(); it != styleCounts.constEnd(); ++it) {
+        if (it.value() > dominantStyleCount) {
+            dominantStyle = it.key();
+            dominantStyleCount = it.value();
+        }
+    }
+    const bool hasDominantStyle = validStyleFeatureCount > 0 && dominantStyleCount * 2 > validStyleFeatureCount;
+    if (canCheckFontStyle && validStyleFeatureCount == 0) {
+        warnings << QStringLiteral("font_family/font_color 没有有效值，已跳过该图层字体混用判定");
+    } else if (canCheckFontStyle && styleCounts.size() > 1 && !hasDominantStyle) {
+        warnings << QStringLiteral("字体样式没有超过半数的主流组合，无法自动判定该图层字体混用");
+    }
+
+    GDALDriver* outputDriver = GetGDALDriverManager()->GetDriverByName("ESRI Shapefile");
+    if (!outputDriver) {
+        errorMessage = QStringLiteral("无法获取 Shapefile 输出驱动");
+        GDALClose(sourceDataset);
+        return false;
+    }
+
+    QFileInfo outputInfo(outputPath);
+    QDir().mkpath(outputInfo.absolutePath());
+    QByteArray outputPathUtf8 = outputPath.toUtf8();
+    char** datasetOptions = nullptr;
+    GDALDataset* outputDataset = outputDriver->Create(outputPathUtf8.constData(), 0, 0, 0, GDT_Unknown, datasetOptions);
+    if (!outputDataset) {
+        errorMessage = QStringLiteral("无法创建错误结果图层：%1").arg(outputPath);
+        GDALClose(sourceDataset);
+        return false;
+    }
+
+    const OGRwkbGeometryType geometryType = sourceLayer->GetGeomType();
+    char** layerOptions = nullptr;
+    layerOptions = CSLSetNameValue(layerOptions, "ENCODING", "UTF-8");
+    OGRLayer* outputLayer = outputDataset->CreateLayer(
+        "annotation_type_errors", sourceLayer->GetSpatialRef(), geometryType, layerOptions);
+    CSLDestroy(layerOptions);
+    bool outputReady = outputLayer != nullptr;
+    if (!outputReady) {
+        errorMessage = QStringLiteral("无法创建输出图层：%1").arg(outputPath);
+    }
+
+    for (int i = 0; outputReady && i < sourceDefinition->GetFieldCount(); ++i) {
+        OGRFieldDefn field(sourceDefinition->GetFieldDefn(i));
+        if (outputLayer->CreateField(&field) != OGRERR_NONE) {
+            outputReady = false;
+            errorMessage = QStringLiteral("复制原始属性字段失败：%1").arg(
+                QString::fromUtf8(sourceDefinition->GetFieldDefn(i)->GetNameRef()));
+        }
+    }
+
+    const QString descriptionField = uniqueDescriptionFieldName(sourceDefinition);
+    if (outputReady) {
+        OGRFieldDefn descriptionDef(descriptionField.toUtf8().constData(), OFTString);
+        descriptionDef.SetWidth(80);
+        if (outputLayer->CreateField(&descriptionDef) != OGRERR_NONE) {
+            outputReady = false;
+            errorMessage = QStringLiteral("无法创建错误说明字段");
+        }
+    }
+
+    if (outputReady) {
+        const int outputDescriptionIndex = outputLayer->GetLayerDefn()->GetFieldIndex(descriptionField.toUtf8().constData());
+        sourceLayer->ResetReading();
+        OGRFeature* sourceFeature = nullptr;
+        while ((sourceFeature = sourceLayer->GetNextFeature()) != nullptr) {
+            ++totalFeatures;
+            QString typeValue;
+            if (sourceFeature->IsFieldSetAndNotNull(elementTypeIndex)) {
+                typeValue = QString::fromUtf8(sourceFeature->GetFieldAsString(elementTypeIndex)).trimmed();
+            }
+            const bool isTextFeature = typeValue.compare(QStringLiteral("text"), Qt::CaseInsensitive) == 0;
+            const bool typeMismatch = !isTextFeature;
+            bool fontMismatch = false;
+            if (canCheckFontStyle && hasDominantStyle && isTextFeature) {
+                if (!sourceFeature->IsFieldSetAndNotNull(fontFamilyIndex) ||
+                    !sourceFeature->IsFieldSetAndNotNull(fontColorIndex)) {
+                    fontMismatch = true;
+                } else {
+                    const QString family = normalizedFontFamily(QString::fromUtf8(sourceFeature->GetFieldAsString(fontFamilyIndex)));
+                    const QString color = normalizedFontColor(QString::fromUtf8(sourceFeature->GetFieldAsString(fontColorIndex)));
+                    fontMismatch = family.isEmpty() || color.isEmpty() ||
+                        family + QChar(0x1f) + color != dominantStyle;
+                }
+            }
+
+            if (typeMismatch || fontMismatch) {
+                ++errorFeatures;
+                if (typeMismatch) ++typeErrorFeatures;
+                if (fontMismatch) ++fontErrorFeatures;
+                OGRFeature* errorFeature = OGRFeature::CreateFeature(outputLayer->GetLayerDefn());
+                if (!errorFeature || errorFeature->SetFrom(sourceFeature, TRUE) != OGRERR_NONE ||
+                    (sourceFeature->GetGeometryRef() && errorFeature->SetGeometry(sourceFeature->GetGeometryRef()) != OGRERR_NONE)) {
+                    outputReady = false;
+                    errorMessage = QStringLiteral("复制异常要素失败：%1，FID=%2")
+                        .arg(sourcePath).arg(static_cast<qlonglong>(sourceFeature->GetFID()));
+                } else {
+                    QStringList descriptions;
+                    if (typeMismatch) descriptions << QStringLiteral("注记层混入了其他要素");
+                    if (fontMismatch) descriptions << QStringLiteral("注记层存在字体混用");
+                    const QByteArray descriptionUtf8 = descriptions.join(QStringLiteral("；")).toUtf8();
+                    errorFeature->SetField(outputDescriptionIndex, descriptionUtf8.constData());
+                    if (outputLayer->CreateFeature(errorFeature) != OGRERR_NONE) {
+                        outputReady = false;
+                        errorMessage = QStringLiteral("写入异常要素失败：%1，FID=%2")
+                            .arg(sourcePath).arg(static_cast<qlonglong>(sourceFeature->GetFID()));
+                    }
+                }
+                if (errorFeature) OGRFeature::DestroyFeature(errorFeature);
+            }
+            OGRFeature::DestroyFeature(sourceFeature);
+            if (!outputReady) break;
+        }
+    }
+
+    GDALClose(outputDataset);
+    GDALClose(sourceDataset);
+    if (!outputReady) {
+        outputDriver->Delete(outputPathUtf8.constData());
+        return false;
+    }
+    if (errorFeatures == 0) {
+        outputDriver->Delete(outputPathUtf8.constData());
+    }
+    return true;
+}
+
+// 仅将最终错误成果归档；临时匹配层仍保留在错误结果根目录，供 213 等交叉验证使用。
+static bool isFinalErrorLayerFile(const QFileInfo& fileInfo)
+{
+    const QString suffix = fileInfo.suffix().toLower();
+    if (suffix != QStringLiteral("shp") && suffix != QStringLiteral("geojson")) return false;
+
+    const QString name = fileInfo.completeBaseName().toLower();
+    if (!name.contains(QStringLiteral("error")) && !name.contains(QStringLiteral("错误"))) return false;
+
+    static const QStringList temporaryMarkers {
+        QStringLiteral("temp"), QStringLiteral("临时"), QStringLiteral("sample_line"),
+        QStringLiteral("parsed_band"), QStringLiteral("辅助")
+    };
+    for (const QString& marker : temporaryMarkers) {
+        if (name.contains(marker)) return false;
+    }
+    return true;
+}
+
+struct ErrorLayerFileState {
+    qint64 modifiedMsecs = -1;
+    qint64 size = -1;
+};
+
+static QHash<QString, ErrorLayerFileState> snapshotFinalErrorLayers(const QString& errorResultDir)
+{
+    QHash<QString, ErrorLayerFileState> snapshot;
+    const QDir dir(errorResultDir);
+    const QFileInfoList files = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot);
+    for (const QFileInfo& fileInfo : files) {
+        if (!isFinalErrorLayerFile(fileInfo)) continue;
+        ErrorLayerFileState state;
+        state.modifiedMsecs = fileInfo.lastModified().toMSecsSinceEpoch();
+        state.size = fileInfo.size();
+        snapshot.insert(QDir::cleanPath(fileInfo.absoluteFilePath()), state);
+    }
+    return snapshot;
+}
+
+static QStringList changedFinalErrorLayers(
+    const QHash<QString, ErrorLayerFileState>& before,
+    const QHash<QString, ErrorLayerFileState>& after)
+{
+    QStringList changed;
+    for (auto it = after.constBegin(); it != after.constEnd(); ++it) {
+        const auto previous = before.constFind(it.key());
+        if (previous == before.constEnd()
+            || previous->modifiedMsecs != it.value().modifiedMsecs
+            || previous->size != it.value().size) {
+            changed.append(it.key());
+        }
+    }
+    return changed;
+}
+
+static void appendErrorLayerPaths(CheckItemResult& result, const QStringList& paths)
+{
+    if (paths.isEmpty()) return;
+    QJsonArray outputPaths = result.info.value(QStringLiteral("error_layer_paths")).toArray();
+    QSet<QString> knownPaths;
+    for (const QJsonValue& value : outputPaths) knownPaths.insert(value.toString());
+    for (const QString& path : paths) {
+        if (!knownPaths.contains(path)) {
+            outputPaths.append(path);
+            knownPaths.insert(path);
+        }
+    }
+    result.info[QStringLiteral("error_layer_paths")] = outputPaths;
+}
+
+struct WaterTaskRun {
+    QString groupKey;
+    QString checkId;
+    QString checkName;
+    QString layerName;
+    QString severity;
+    QString status;
+    QString resultKey;
+    QString rawOutputDir;
+    QString rawLogName;
+    QString sharedKey;
+    QStringList rawErrorLayers;
+    QJsonObject errors;
+    CheckItemResult result;
+};
+
+static std::unique_ptr<QTemporaryDir> createWaterWorkDirectory(const QString& outputDir)
+{
+    const auto absolutePath = [](const QString& path) {
+        const QFileInfo info(path);
+        const QString canonical = info.canonicalFilePath();
+        return QDir::cleanPath(QDir::fromNativeSeparators(
+            canonical.isEmpty() ? info.absoluteFilePath() : canonical));
+    };
+    const QString watchedRoot = absolutePath(outputDir);
+    const QString watchedPrefix = watchedRoot.endsWith(QLatin1Char('/'))
+        ? watchedRoot : watchedRoot + QLatin1Char('/');
+    const auto underWatchedRoot = [&](const QString& path) {
+        const QString resolved = absolutePath(path);
+        return resolved.compare(watchedRoot, Qt::CaseInsensitive) == 0
+            || resolved.startsWith(watchedPrefix, Qt::CaseInsensitive);
+    };
+
+    // LTZK can recursively load every SHP under the selected output root.
+    const QStringList candidates{QDir::tempPath(),
+        QStandardPaths::writableLocation(QStandardPaths::CacheLocation)};
+    for (const QString& root : candidates) {
+        if (root.isEmpty() || underWatchedRoot(root) || !QDir().mkpath(root)) continue;
+        auto temporary = std::make_unique<QTemporaryDir>(
+            QDir(root).filePath(QStringLiteral(".water_task_results_XXXXXX")));
+        if (temporary->isValid() && !underWatchedRoot(temporary->path())) return temporary;
+    }
+    return {};
+}
+
+struct WaterErrorFeature {
+    QString groupKey;
+    QString checkId;
+    QString category;
+    QString fingerprint;
+    QgsFeature feature;
+    QgsCoordinateReferenceSystem crs;
+    bool categoryConflict = false;
+};
+
+static QString localLayerSourcePath(const QString& source);
+
+static bool isWaterStandardTask(const QString& layerName, const AlgorithmFilePaths& paths)
+{
+    const QString name = layerName.trimmed();
+    if (name.contains(QStringLiteral("河")) || name.contains(QStringLiteral("水系"))
+        || name.contains(QStringLiteral("干渠")) || name.contains(QStringLiteral("支渠"))
+        || name == QStringLiteral("沟渠")) return true;
+
+    const QStringList inputs = paths.actualShpSemicolon.split(QLatin1Char(';'), Qt::SkipEmptyParts);
+    for (const QString& input : inputs) {
+        const QString base = QFileInfo(input.trimmed()).completeBaseName();
+        if (base.contains(QStringLiteral("河")) || base.contains(QStringLiteral("水系"))
+            || base.contains(QStringLiteral("渠"))) return true;
+    }
+    return false;
+}
+
+static QString waterTaskGroupKey(const QString& checkId, const AlgorithmFilePaths& paths)
+{
+    QStringList canonicalInputs;
+    for (QString path : paths.actualShpSemicolon.split(QLatin1Char(';'), Qt::SkipEmptyParts)) {
+        path = path.trimmed();
+        const QFileInfo file(path);
+        const QString canonical = file.canonicalFilePath();
+        canonicalInputs.append(QDir::fromNativeSeparators(canonical.isEmpty()
+            ? file.absoluteFilePath() : canonical).toCaseFolded());
+    }
+    canonicalInputs.removeDuplicates();
+    std::sort(canonicalInputs.begin(), canonicalInputs.end());
+    if (canonicalInputs.isEmpty()) return {};
+    return checkId + QLatin1Char('|') + canonicalInputs.join(QLatin1Char(';'));
+}
+
+static QString waterCategoryFromFields(const QgsFeature& feature)
+{
+    const int categoryIndex = feature.fields().indexFromName(QStringLiteral("ref_class"));
+    QString category = categoryIndex >= 0 ? feature.attribute(categoryIndex).toString().trimmed() : QString();
+    static const QStringList knownCategories {
+        QStringLiteral("一级河流"), QStringLiteral("二级河流"), QStringLiteral("三级河流"),
+        QStringLiteral("四级河流"), QStringLiteral("五级河流"), QStringLiteral("六级河流"),
+        QStringLiteral("等外河流"), QStringLiteral("总干渠"), QStringLiteral("干渠"),
+        QStringLiteral("支渠"), QStringLiteral("沟渠")
+    };
+    if (knownCategories.contains(category)) return category;
+
+    const int valueIndex = feature.fields().indexFromName(QStringLiteral("ref_value"));
+    if (valueIndex >= 0) {
+        const QString rawValue = feature.attribute(valueIndex).toString().trimmed();
+        category = WaterResultClassification::categoryFor(QStringLiteral("LEVEL"), rawValue);
+        if (category.isEmpty()) category = WaterResultClassification::categoryFor(QStringLiteral("TYPE"), rawValue);
+        if (knownCategories.contains(category)) return category;
+    }
+    return {};
+}
+
+static QString waterFeatureFingerprint(const QgsFeature& feature)
+{
+    QJsonObject identity;
+    static const QSet<QString> identityFields {
+        QStringLiteral("error_type"), QStringLiteral("descriptio"), QStringLiteral("calc_value"),
+        QStringLiteral("std_value"), QStringLiteral("feature_id"), QStringLiteral("source_fil"),
+        QStringLiteral("check_type")
+    };
+    for (int i = 0; i < feature.fields().size(); ++i) {
+        const QString name = feature.fields().at(i).name();
+        if (identityFields.contains(name) || name.startsWith(QStringLiteral("detail_")))
+            identity.insert(name, QJsonValue::fromVariant(feature.attribute(i)));
+    }
+    const QByteArray wkb = feature.geometry().asWkb();
+    identity.insert(QStringLiteral("geometry_sha256"), QString::fromLatin1(
+        QCryptographicHash::hash(wkb, QCryptographicHash::Sha256).toHex()));
+    return QString::fromLatin1(QCryptographicHash::hash(
+        QJsonDocument(identity).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex());
+}
+
+static QString waterJsonErrorFingerprint(const QJsonObject& error)
+{
+    if (!error.contains(QStringLiteral("error_type")) || !error.contains(QStringLiteral("description"))) return {};
+    QJsonObject identity = error;
+    identity.remove(QStringLiteral("reference_source"));
+    identity.remove(QStringLiteral("reference_fid"));
+    identity.remove(QStringLiteral("reference_category"));
+    identity.remove(QStringLiteral("reference_value"));
+    identity.remove(QStringLiteral("classification_status"));
+    return QString::fromLatin1(QCryptographicHash::hash(
+        QJsonDocument(identity).toJson(QJsonDocument::Compact), QCryptographicHash::Sha256).toHex());
+}
+
+static QString waterJsonErrorCategory(const QJsonObject& error)
+{
+    if (error.value(QStringLiteral("classification_status")).toString().contains(QStringLiteral("冲突")))
+        return {};
+    QString category = error.value(QStringLiteral("reference_category")).toString().trimmed();
+    const QString rawValue = error.value(QStringLiteral("reference_value")).toString().trimmed();
+    static const QStringList knownCategories {
+        QStringLiteral("一级河流"), QStringLiteral("二级河流"), QStringLiteral("三级河流"),
+        QStringLiteral("四级河流"), QStringLiteral("五级河流"), QStringLiteral("六级河流"),
+        QStringLiteral("等外河流"), QStringLiteral("总干渠"), QStringLiteral("干渠"),
+        QStringLiteral("支渠"), QStringLiteral("沟渠")
+    };
+    if (knownCategories.contains(category)) return category;
+    category = WaterResultClassification::categoryFor(QStringLiteral("LEVEL"), rawValue);
+    if (category.isEmpty()) category = WaterResultClassification::categoryFor(QStringLiteral("TYPE"), rawValue);
+    return knownCategories.contains(category) ? category : QString();
+}
+
+static QString safeWaterOutputName(QString name)
+{
+    name.replace('/', '_').replace('\\', '_').replace(':', '_').replace('*', '_')
+        .replace('?', '_').replace('"', '_').replace('<', '_').replace('>', '_').replace('|', '_');
+    return name.trimmed().isEmpty() ? QStringLiteral("未命名图层") : name.trimmed();
+}
+
+static QString waterCheckPrefix(const QString& checkId)
+{
+    return checkId == QStringLiteral("105") ? QStringLiteral("几何走向异常检查")
+        : QStringLiteral("线要素拓扑检查");
+}
+
+static QString waterGeometrySuffix(const QgsGeometry& geometry)
+{
+    switch (QgsWkbTypes::geometryType(geometry.wkbType())) {
+    case QgsWkbTypes::PointGeometry: return QStringLiteral("_points.shp");
+    case QgsWkbTypes::LineGeometry: return QStringLiteral("_lines.shp");
+    case QgsWkbTypes::PolygonGeometry: return QStringLiteral("_polygons.shp");
+    default: return {};
+    }
+}
+
+static QString waterMemoryGeometryName(const QgsGeometry& geometry)
+{
+    switch (QgsWkbTypes::geometryType(geometry.wkbType())) {
+    case QgsWkbTypes::PointGeometry: return QStringLiteral("Point");
+    case QgsWkbTypes::LineGeometry: return QStringLiteral("LineString");
+    case QgsWkbTypes::PolygonGeometry: return QStringLiteral("Polygon");
+    default: return {};
+    }
+}
+
+static QStringList removeWaterShapefile(const QString& shpPath)
+{
+    QStringList removed;
+    const QFileInfo info(shpPath);
+    const QString base = info.completeBaseName();
+    const QStringList extensions { QStringLiteral("shp"), QStringLiteral("shx"), QStringLiteral("dbf"),
+        QStringLiteral("prj"), QStringLiteral("cpg"), QStringLiteral("qix"), QStringLiteral("sbn"), QStringLiteral("sbx") };
+    for (const QString& extension : extensions) {
+        const QString path = info.dir().filePath(base + QLatin1Char('.') + extension);
+        if (QFileInfo::exists(path)) {
+            if (QFile::remove(path)) removed.append(path);
+            else qWarning() << "[水系分类输出] 无法清理旧文件:" << path;
+        }
+    }
+    return removed;
+}
+
+static bool writeWaterCategoryShapefile(const QVector<WaterErrorFeature*>& records,
+                                        const QString& outputPath, QString* errorMessage)
+{
+    if (records.isEmpty()) return true;
+    const QgsGeometry geometry = records.front()->feature.geometry();
+    const QString geometryName = waterMemoryGeometryName(geometry);
+    if (geometryName.isEmpty()) return false;
+
+    QgsFields fields;
+    for (const WaterErrorFeature* record : records) {
+        const QgsFields sourceFields = record->feature.fields();
+        for (int i = 0; i < sourceFields.size(); ++i) {
+            if (fields.indexFromName(sourceFields.at(i).name()) < 0) fields.append(sourceFields.at(i));
+        }
+    }
+
+    const QgsCoordinateReferenceSystem crs = records.front()->crs;
+    QString memoryUri = geometryName;
+    if (crs.isValid() && !crs.authid().isEmpty()) memoryUri += QStringLiteral("?crs=%1").arg(crs.authid());
+    QgsVectorLayer memoryLayer(memoryUri, QStringLiteral("水系分类错误"), QStringLiteral("memory"));
+    if (!memoryLayer.isValid()) {
+        if (errorMessage) *errorMessage = QStringLiteral("无法创建水系错误内存图层");
+        return false;
+    }
+    QgsVectorDataProvider* provider = memoryLayer.dataProvider();
+    if (!provider || !provider->addAttributes(fields.toList())) {
+        if (errorMessage) *errorMessage = QStringLiteral("无法创建水系错误字段");
+        return false;
+    }
+    memoryLayer.updateFields();
+    if (crs.isValid()) memoryLayer.setCrs(crs);
+
+    QList<QgsFeature> outputFeatures;
+    outputFeatures.reserve(records.size());
+    for (const WaterErrorFeature* record : records) {
+        QgsFeature outputFeature(memoryLayer.fields());
+        outputFeature.setGeometry(record->feature.geometry());
+        QgsAttributes attributes;
+        attributes.reserve(fields.size());
+        for (int fieldIndex = 0; fieldIndex < fields.size(); ++fieldIndex) {
+            const int sourceIndex = record->feature.fields().indexFromName(fields.at(fieldIndex).name());
+            attributes << (sourceIndex >= 0 ? record->feature.attribute(sourceIndex) : QVariant());
+        }
+        outputFeature.setAttributes(attributes);
+        outputFeatures.append(outputFeature);
+    }
+    if (!provider->addFeatures(outputFeatures)) {
+        if (errorMessage) *errorMessage = QStringLiteral("无法写入水系分类错误要素");
+        return false;
+    }
+
+    QgsVectorFileWriter::SaveVectorOptions options;
+    options.driverName = QStringLiteral("ESRI Shapefile");
+    options.fileEncoding = QStringLiteral("UTF-8");
+    options.actionOnExistingFile = QgsVectorFileWriter::CreateOrOverwriteFile;
+    options.symbologyExport = QgsVectorFileWriter::NoSymbology;
+    QgsCoordinateTransformContext transformContext;
+    const auto error = QgsVectorFileWriter::writeAsVectorFormatV3(
+        &memoryLayer, outputPath, transformContext, options, errorMessage);
+    if (error != QgsVectorFileWriter::NoError) return false;
+    QgsVectorLayer verification(outputPath, QStringLiteral("水系分类错误验证"), QStringLiteral("ogr"));
+    return verification.isValid() && verification.featureCount() == records.size();
+}
+
+static bool consolidateWaterTaskResults(
+    const QVector<WaterTaskRun>& runs,
+    const QString& finalErrorDir,
+    const QString& finalJsonDir,
+    const QString& finalLogDir,
+    QHash<QString, CheckItemResult>& checkResults,
+    QHash<QString, QString>& generatedLayerSeverities,
+    QJsonObject* summary,
+    QStringList* diagnostics)
+{
+    if (runs.isEmpty()) return true;
+    QDir().mkpath(finalErrorDir);
+    QDir().mkpath(finalJsonDir);
+    QDir().mkpath(finalLogDir);
+
+    QMap<QString, QVector<int>> runsByGroup;
+    for (int i = 0; i < runs.size(); ++i) runsByGroup[runs.at(i).groupKey].append(i);
+
+    QVector<WaterErrorFeature> featureRecords;
+    QHash<QString, int> featureRecordByKey;
+    QMap<QString, QMap<QString, QJsonObject>> jsonRecordsByGroup;
+    QMap<QString, QSet<QString>> activeCategoriesByGroup;
+    for (const WaterTaskRun& run : runs) {
+        if (run.status == QStringLiteral("质检成功") || run.status == QStringLiteral("质检完成"))
+            activeCategoriesByGroup[run.groupKey].insert(run.layerName);
+    }
+
+    for (const WaterTaskRun& run : runs) {
+        if (run.status != QStringLiteral("质检成功") && run.status != QStringLiteral("质检完成"))
+            continue;
+        for (const QString& path : run.rawErrorLayers) {
+            QgsVectorLayer source(path, QFileInfo(path).completeBaseName(), QStringLiteral("ogr"));
+            if (!source.isValid()) {
+                if (diagnostics) diagnostics->append(QStringLiteral("无法读取水系原始错误图层：%1").arg(path));
+                continue;
+            }
+            QgsFeatureIterator iterator = source.getFeatures();
+            QgsFeature feature;
+            while (iterator.nextFeature(feature)) {
+                if (!feature.hasGeometry() || feature.geometry().isNull() || feature.geometry().isEmpty()) continue;
+                WaterErrorFeature record;
+                record.groupKey = run.groupKey;
+                record.checkId = run.checkId;
+                record.category = waterCategoryFromFields(feature);
+                record.fingerprint = waterFeatureFingerprint(feature);
+                record.feature = feature;
+                record.crs = source.crs();
+                const QString key = run.groupKey + QLatin1Char('|') + record.fingerprint;
+                const auto existing = featureRecordByKey.constFind(key);
+                if (existing == featureRecordByKey.constEnd()) {
+                    featureRecordByKey.insert(key, featureRecords.size());
+                    featureRecords.append(record);
+                } else {
+                    WaterErrorFeature& previous = featureRecords[existing.value()];
+                    if (!previous.category.isEmpty() && !record.category.isEmpty()
+                        && previous.category != record.category) {
+                        previous.category.clear();
+                        previous.categoryConflict = true;
+                    } else if (previous.category.isEmpty() && !record.category.isEmpty()
+                               && !previous.categoryConflict) {
+                        previous.category = record.category;
+                        previous.feature = record.feature;
+                        previous.crs = record.crs;
+                    }
+                }
+            }
+        }
+
+        if (run.status != QStringLiteral("质检成功") && run.status != QStringLiteral("质检完成"))
+            continue;
+        for (auto errorIt = run.errors.constBegin(); errorIt != run.errors.constEnd(); ++errorIt) {
+            if (!errorIt.value().isObject()) continue;
+            QJsonObject error = errorIt.value().toObject();
+            QString category = waterJsonErrorCategory(error);
+            const QString fingerprint = waterJsonErrorFingerprint(error);
+            const QString key = fingerprint.isEmpty()
+                ? run.resultKey + QLatin1Char('|') + errorIt.key()
+                : fingerprint;
+            auto& groupRecords = jsonRecordsByGroup[run.groupKey];
+            if (!groupRecords.contains(key)) {
+                if (!category.isEmpty()) error.insert(QStringLiteral("reference_category"), category);
+                groupRecords.insert(key, error);
+                continue;
+            }
+
+            QJsonObject& previous = groupRecords[key];
+            const QString previousCategory = waterJsonErrorCategory(previous);
+            if (!previousCategory.isEmpty() && !category.isEmpty() && previousCategory != category) {
+                previous.remove(QStringLiteral("reference_category"));
+                previous.insert(QStringLiteral("classification_status"), QStringLiteral("类别匹配冲突，转入待归类"));
+            } else if (previousCategory.isEmpty() && !category.isEmpty()
+                       && !previous.contains(QStringLiteral("classification_status"))) {
+                previous.insert(QStringLiteral("reference_category"), category);
+            }
+        }
+    }
+
+    // Resolve feature-level classification conflicts and collect final files by check/category/geometry.
+    QMap<QString, QVector<int>> outputRecords;
+    QMap<QString, QSet<QString>> categoriesToClear;
+    QMap<QString, QMap<QString, QJsonArray>> errorsByGroupAndCategory;
+    QMap<QString, QJsonArray> pendingErrorsByGroup;
+    QMap<QString, QMap<QString, QStringList>> outputPathsByGroupAndCategory;
+    QMap<QString, QMap<QString, int>> featureCountsByGroupAndCategory;
+    for (auto groupIt = runsByGroup.cbegin(); groupIt != runsByGroup.cend(); ++groupIt) {
+        const QString groupKey = groupIt.key();
+        const QString checkId = runs.at(groupIt.value().front()).checkId;
+        for (const QString& activeCategory : activeCategoriesByGroup.value(groupKey))
+            categoriesToClear[checkId].insert(activeCategory);
+        if (!activeCategoriesByGroup.value(groupKey).isEmpty())
+            categoriesToClear[checkId].insert(QStringLiteral("水系待归类"));
+
+        for (auto jsonIt = jsonRecordsByGroup[groupKey].begin(); jsonIt != jsonRecordsByGroup[groupKey].end(); ++jsonIt) {
+            QJsonObject& error = jsonIt.value();
+            const QString category = waterJsonErrorCategory(error);
+            if (!category.isEmpty()) {
+                errorsByGroupAndCategory[groupKey][category].append(error);
+                categoriesToClear[checkId].insert(category);
+            } else {
+                error.insert(QStringLiteral("classification_status"),
+                    error.value(QStringLiteral("classification_status")).toString(QStringLiteral("未匹配到唯一库体类别")));
+                pendingErrorsByGroup[groupKey].append(error);
+            }
+        }
+    }
+
+    for (int i = 0; i < featureRecords.size(); ++i) {
+        WaterErrorFeature& record = featureRecords[i];
+        if (record.categoryConflict || record.category.isEmpty()) {
+            record.category = QStringLiteral("水系待归类");
+            const int classIndex = record.feature.fields().indexFromName(QStringLiteral("ref_class"));
+            if (classIndex >= 0) record.feature.setAttribute(classIndex, record.category);
+            categoriesToClear[record.checkId].insert(record.category);
+        } else {
+            const int classIndex = record.feature.fields().indexFromName(QStringLiteral("ref_class"));
+            if (classIndex >= 0) record.feature.setAttribute(classIndex, record.category);
+            categoriesToClear[record.checkId].insert(record.category);
+        }
+        const QString suffix = waterGeometrySuffix(record.feature.geometry());
+        if (suffix.isEmpty()) {
+            if (diagnostics) diagnostics->append(QStringLiteral("未支持的水系错误几何类型：%1").arg(record.feature.geometry().wkbType()));
+            continue;
+        }
+        const QString outputKey = record.checkId + QLatin1Char('|') + record.category + QLatin1Char('|') + suffix;
+        outputRecords[outputKey].append(i);
+    }
+
+    // Unload any previous category outputs before replacing their shapefile components.
+    QStringList oldWaterShapefiles;
+    QDir errorDirectory(finalErrorDir);
+    for (auto checkIt = categoriesToClear.cbegin(); checkIt != categoriesToClear.cend(); ++checkIt) {
+        for (const QString& category : checkIt.value()) {
+            const QString safeCategory = safeWaterOutputName(category);
+            const QString prefix = waterCheckPrefix(checkIt.key()) + QLatin1Char('_') + safeCategory + QStringLiteral("_errors_");
+            const QFileInfoList matches = errorDirectory.entryInfoList(QStringList{prefix + QStringLiteral("*.shp")}, QDir::Files);
+            for (const QFileInfo& match : matches) oldWaterShapefiles.append(match.absoluteFilePath());
+        }
+    }
+    oldWaterShapefiles.removeDuplicates();
+    const auto unloadOldWaterLayers = [&]() {
+        QgsProject* project = QgsProject::instance();
+        if (!project) return;
+        QSet<QString> oldSources;
+        for (const QString& path : oldWaterShapefiles) oldSources.insert(localLayerSourcePath(path));
+        const auto projectLayers = project->mapLayers();
+        for (QgsMapLayer* mapLayer : projectLayers) {
+            auto* vector = qobject_cast<QgsVectorLayer*>(mapLayer);
+            if (vector && oldSources.contains(localLayerSourcePath(vector->source())))
+                project->removeMapLayer(vector->id());
+        }
+    };
+    QCoreApplication* application = QCoreApplication::instance();
+    if (!application || QThread::currentThread() == application->thread()) unloadOldWaterLayers();
+    else if (!QMetaObject::invokeMethod(application, unloadOldWaterLayers, Qt::BlockingQueuedConnection)) {
+        if (diagnostics) diagnostics->append(QStringLiteral("无法在主线程卸载旧水系错误图层"));
+    }
+    for (const QString& path : oldWaterShapefiles) removeWaterShapefile(path);
+
+    QMap<QString, QStringList> finalPathsByCheckAndCategory;
+    bool allWritten = true;
+    for (auto outputIt = outputRecords.cbegin(); outputIt != outputRecords.cend(); ++outputIt) {
+        const QStringList keyParts = outputIt.key().split(QLatin1Char('|'));
+        if (keyParts.size() != 3) continue;
+        const QString checkId = keyParts.at(0);
+        const QString category = keyParts.at(1);
+        const QString suffix = keyParts.at(2);
+        QVector<WaterErrorFeature*> records;
+        records.reserve(outputIt.value().size());
+        for (int recordIndex : outputIt.value()) records.append(&featureRecords[recordIndex]);
+        if (records.isEmpty()) continue;
+        const QString baseName = waterCheckPrefix(checkId) + QLatin1Char('_')
+            + safeWaterOutputName(category) + QStringLiteral("_errors");
+        const QString outputPath = errorDirectory.filePath(baseName + suffix);
+        QString writeError;
+        if (!writeWaterCategoryShapefile(records, outputPath, &writeError)) {
+            allWritten = false;
+            if (diagnostics) diagnostics->append(QStringLiteral("水系分类输出失败：%1；%2").arg(outputPath, writeError));
+            continue;
+        }
+        finalPathsByCheckAndCategory[checkId + QLatin1Char('|') + category].append(outputPath);
+        QSet<QString> representedGroups;
+        for (const WaterErrorFeature* record : records) representedGroups.insert(record->groupKey);
+        for (const QString& representedGroup : representedGroups)
+            outputPathsByGroupAndCategory[representedGroup][category].append(outputPath);
+        for (const WaterErrorFeature* record : records)
+            ++featureCountsByGroupAndCategory[record->groupKey][category];
+        QString severity = QStringLiteral("未配置");
+        int bestRank = 0;
+        auto rank = [](const QString& value) {
+            if (value.contains(QStringLiteral("高"))) return 3;
+            if (value.contains(QStringLiteral("中"))) return 2;
+            if (value.contains(QStringLiteral("低"))) return 1;
+            return 0;
+        };
+        for (const WaterTaskRun& run : runs) {
+            if (run.checkId != checkId) continue;
+            const bool sameCategory = category != QStringLiteral("水系待归类")
+                && run.layerName == category;
+            if (sameCategory && rank(run.severity) > bestRank) {
+                bestRank = rank(run.severity);
+                severity = run.severity;
+            }
+        }
+        generatedLayerSeverities.insert(QDir::cleanPath(outputPath), severity);
+    }
+
+    // Assign each deduplicated JSON error to its library category. Unknown/conflicting records
+    // appear once under the first task for this shared input, with an explicit pending label.
+    for (auto groupIt = runsByGroup.cbegin(); groupIt != runsByGroup.cend(); ++groupIt) {
+        const QString groupKey = groupIt.key();
+        const QVector<int>& groupRuns = groupIt.value();
+        QString pendingOwnerKey;
+        for (int runIndex : groupRuns) {
+            if (!runs.at(runIndex).resultKey.isEmpty()
+                && (runs.at(runIndex).status == QStringLiteral("质检成功")
+                    || runs.at(runIndex).status == QStringLiteral("质检完成"))) {
+                pendingOwnerKey = runs.at(runIndex).resultKey;
+                break;
+            }
+        }
+        for (int runIndex : groupRuns) {
+            const WaterTaskRun& run = runs.at(runIndex);
+            auto resultIt = checkResults.find(run.resultKey);
+            if (resultIt == checkResults.end()) continue;
+            CheckItemResult& result = resultIt.value();
+            if (result.status != QStringLiteral("质检成功") && result.status != QStringLiteral("质检完成")) {
+                result.info.remove(QStringLiteral("error_layer_paths"));
+                QJsonArray retainedErrors;
+                for (auto errorIt = result.errors.constBegin(); errorIt != result.errors.constEnd(); ++errorIt)
+                    retainedErrors.append(errorIt.value());
+                QJsonObject failedItem;
+                failedItem.insert(QStringLiteral("id"), run.checkId);
+                failedItem.insert(QStringLiteral("name"), run.checkName);
+                failedItem.insert(QStringLiteral("status"), result.status);
+                failedItem.insert(QStringLiteral("err_exist"), result.err_exist);
+                failedItem.insert(QStringLiteral("info"), result.info);
+                failedItem.insert(QStringLiteral("errors"), retainedErrors);
+                QJsonObject failedRoot;
+                failedRoot.insert(run.checkId == QStringLiteral("105") ? QStringLiteral("check_item2") : QStringLiteral("check_item1"), failedItem);
+                const QString failedJsonName = (run.checkId == QStringLiteral("105")
+                    ? QStringLiteral("几何走向异常_") : QStringLiteral("线要素拓扑_"))
+                    + safeWaterOutputName(run.layerName) + QStringLiteral(".json");
+                QSaveFile failedFile(QDir(finalJsonDir).filePath(failedJsonName));
+                const QByteArray failedBytes = QJsonDocument(failedRoot).toJson(QJsonDocument::Indented);
+                if (!failedFile.open(QIODevice::WriteOnly) || failedFile.write(failedBytes) != failedBytes.size()
+                    || !failedFile.commit()) allWritten = false;
+                continue;
+            }
+
+            QJsonArray assigned;
+            for (const QJsonValue& error : errorsByGroupAndCategory[groupKey][run.layerName]) assigned.append(error);
+            if (run.resultKey == pendingOwnerKey)
+                for (const QJsonValue& error : pendingErrorsByGroup[groupKey]) assigned.append(error);
+
+            QJsonObject errorsObject;
+            QSet<QString> errorTypes;
+            int errorIndex = 1;
+            for (const QJsonValue& value : assigned) {
+                errorsObject.insert(QStringLiteral("error%1").arg(errorIndex++), value);
+                const QString errorType = value.toObject().value(QStringLiteral("error_type")).toString();
+                if (!errorType.isEmpty()) errorTypes.insert(errorType);
+            }
+            result.errors = errorsObject;
+            result.err_exist = !assigned.isEmpty();
+            result.info.insert(QStringLiteral("error_count"), assigned.size());
+            QJsonArray errorTypeArray;
+            for (const QString& errorType : errorTypes) errorTypeArray.append(errorType);
+            result.info.insert(QStringLiteral("error_types"), errorTypeArray);
+            if (assigned.isEmpty()) result.info.insert(QStringLiteral("summary"), QStringLiteral("未发现错误"));
+            else if (run.resultKey == pendingOwnerKey && !pendingErrorsByGroup[groupKey].isEmpty())
+                result.info.insert(QStringLiteral("summary"), QStringLiteral("已归类错误及%1条待归类水系错误").arg(pendingErrorsByGroup[groupKey].size()));
+            else result.info.insert(QStringLiteral("summary"), QStringLiteral("按库体类别去重后发现%1条错误").arg(assigned.size()));
+
+            QStringList outputPaths = finalPathsByCheckAndCategory.value(run.checkId + QLatin1Char('|') + run.layerName);
+            if (run.resultKey == pendingOwnerKey)
+                outputPaths += finalPathsByCheckAndCategory.value(run.checkId + QStringLiteral("|水系待归类"));
+            outputPaths.removeDuplicates();
+            QJsonArray pathArray;
+            for (const QString& path : outputPaths) pathArray.append(path);
+            result.info.insert(QStringLiteral("error_layer_paths"), pathArray);
+
+            const QString jsonBaseName = (run.checkId == QStringLiteral("105")
+                ? QStringLiteral("几何走向异常_") : QStringLiteral("线要素拓扑_"))
+                + safeWaterOutputName(run.layerName) + QStringLiteral(".json");
+            QJsonArray reportErrors;
+            for (const QJsonValue& value : assigned) reportErrors.append(value);
+            QJsonObject reportItem;
+            reportItem.insert(QStringLiteral("id"), run.checkId);
+            reportItem.insert(QStringLiteral("name"), run.checkName);
+            reportItem.insert(QStringLiteral("status"), result.status);
+            reportItem.insert(QStringLiteral("err_exist"), result.err_exist);
+            reportItem.insert(QStringLiteral("info"), result.info);
+            reportItem.insert(QStringLiteral("errors"), reportErrors);
+            QJsonObject reportRoot;
+            reportRoot.insert(run.checkId == QStringLiteral("105") ? QStringLiteral("check_item2") : QStringLiteral("check_item1"), reportItem);
+            QSaveFile reportFile(QDir(finalJsonDir).filePath(jsonBaseName));
+            if (!reportFile.open(QIODevice::WriteOnly)
+                || reportFile.write(QJsonDocument(reportRoot).toJson(QJsonDocument::Indented)) < 0
+                || !reportFile.commit()) {
+                allWritten = false;
+                if (diagnostics) diagnostics->append(QStringLiteral("无法写入分类质检JSON：%1").arg(reportFile.fileName()));
+            }
+        }
+    }
+
+    // Copy task-specific logs before the owner releases the temporary directory.
+    for (const WaterTaskRun& run : runs) {
+        const QString logName = (run.checkId == QStringLiteral("105")
+            ? QStringLiteral("几何走向异常_") : QStringLiteral("线要素拓扑_"))
+            + safeWaterOutputName(run.layerName) + QStringLiteral(".log");
+        const QString sourceLog = QDir(run.rawOutputDir).filePath(QStringLiteral("质检日志文件/")
+            + (run.rawLogName.isEmpty() ? logName : run.rawLogName));
+        const QString destinationLog = QDir(finalLogDir).filePath(logName);
+        if (QFileInfo::exists(sourceLog)) {
+            QFile::remove(destinationLog);
+            if (!QFile::copy(sourceLog, destinationLog) && diagnostics)
+                diagnostics->append(QStringLiteral("无法复制水系检查日志：%1").arg(sourceLog));
+        }
+    }
+
+    if (summary) {
+        QJsonArray groups;
+        for (auto groupIt = runsByGroup.cbegin(); groupIt != runsByGroup.cend(); ++groupIt) {
+            const QString groupKey = groupIt.key();
+            const WaterTaskRun& firstRun = runs.at(groupIt.value().front());
+            QJsonObject group;
+            group.insert(QStringLiteral("check_id"), firstRun.checkId);
+            group.insert(QStringLiteral("parsed_input_signature"), groupKey.section(QLatin1Char('|'), 1));
+            group.insert(QStringLiteral("deduplicated"), true);
+            QJsonArray categories;
+            QSet<QString> categoryNames = activeCategoriesByGroup.value(groupKey);
+            for (auto it = errorsByGroupAndCategory[groupKey].cbegin(); it != errorsByGroupAndCategory[groupKey].cend(); ++it)
+                categoryNames.insert(it.key());
+            for (const QString& category : categoryNames) {
+                QJsonObject categorySummary;
+                categorySummary.insert(QStringLiteral("category"), category);
+                const QJsonArray errors = errorsByGroupAndCategory[groupKey].value(category);
+                categorySummary.insert(QStringLiteral("error_count"), errors.size());
+                categorySummary.insert(QStringLiteral("feature_count"), featureCountsByGroupAndCategory[groupKey].value(category));
+                categorySummary.insert(QStringLiteral("errors"), errors);
+                QJsonArray paths;
+                for (const QString& path : outputPathsByGroupAndCategory[groupKey][category]) paths.append(path);
+                categorySummary.insert(QStringLiteral("error_layer_paths"), paths);
+                categories.append(categorySummary);
+            }
+            group.insert(QStringLiteral("categories"), categories);
+            const QJsonArray pending = pendingErrorsByGroup.value(groupKey);
+            QJsonObject pendingSummary;
+            pendingSummary.insert(QStringLiteral("category"), QStringLiteral("水系待归类"));
+            pendingSummary.insert(QStringLiteral("error_count"), pending.size());
+            pendingSummary.insert(QStringLiteral("feature_count"),
+                featureCountsByGroupAndCategory[groupKey].value(QStringLiteral("水系待归类")));
+            pendingSummary.insert(QStringLiteral("errors"), pending);
+            QJsonArray pendingPaths;
+            for (const QString& path : finalPathsByCheckAndCategory.value(firstRun.checkId + QStringLiteral("|水系待归类")))
+                pendingPaths.append(path);
+            pendingSummary.insert(QStringLiteral("error_layer_paths"), pendingPaths);
+            group.insert(QStringLiteral("pending"), pendingSummary);
+            groups.append(group);
+        }
+        summary->insert(QStringLiteral("enabled"), true);
+        summary->insert(QStringLiteral("groups"), groups);
+    }
+
+    return allWritten;
+}
+
+static QJsonValue replaceArchivedLayerPaths(
+    const QJsonValue& value, const QHash<QString, QString>& replacements)
+{
+    if (value.isString()) return replacements.value(value.toString(), value.toString());
+    if (value.isArray()) {
+        QJsonArray updated;
+        for (const QJsonValue& child : value.toArray()) {
+            updated.append(replaceArchivedLayerPaths(child, replacements));
+        }
+        return updated;
+    }
+    if (value.isObject()) {
+        QJsonObject updated;
+        const QJsonObject object = value.toObject();
+        for (auto it = object.begin(); it != object.end(); ++it) {
+            updated.insert(it.key(), replaceArchivedLayerPaths(it.value(), replacements));
+        }
+        return updated;
+    }
+    return value;
+}
+
+static QString checkItemSeverityKey(const QString& layerName, const QString& checkItemName)
+{
+    return layerName.trimmed() + QChar(0x1f) + checkItemName.trimmed();
+}
+
+QJsonObject map_check_task_manager::loadPhaseOneConfigSnapshot()
+{
+    QSettings settings(QStringLiteral("GSZJPlugins"), QStringLiteral("map_quality_check_tools_test"));
+    const QJsonDocument doc = QJsonDocument::fromJson(
+        settings.value(QStringLiteral("phase_one_config_snapshot")).toByteArray());
+    return doc.isObject() ? doc.object() : QJsonObject();
+}
+
+void map_check_task_manager::savePhaseOneConfigSnapshot() const
+{
+    QStringList shpDirs, gdbDirs, csvPaths;
+    for (int row = 0; row < ui->tableWidget_GeopdfPath->rowCount(); ++row) {
+        const AlgorithmFilePaths paths = const_cast<map_check_task_manager*>(this)->getFilePathsByRow(row);
+        if (!paths.shpPath.trimmed().isEmpty()) shpDirs << paths.shpPath.trimmed();
+        if (!paths.gdbShpPath.trimmed().isEmpty()) gdbDirs << paths.gdbShpPath.trimmed();
+        if (!paths.csvPath.trimmed().isEmpty() && !csvPaths.contains(paths.csvPath.trimmed())) csvPaths << paths.csvPath.trimmed();
+    }
+    QJsonObject snapshot;
+    snapshot[QStringLiteral("xml_rule_path")] = m_xmlPaths.isEmpty() ? ui->lineEdit_xmlfiles->text().trimmed() : m_xmlPaths.first();
+    snapshot[QStringLiteral("actual_dir")] = commonSnapshotDir(shpDirs);
+    snapshot[QStringLiteral("gdb_dir")] = commonSnapshotDir(gdbDirs);
+    snapshot[QStringLiteral("csv_path")] = csvPaths.size() == 1 ? csvPaths.first() : QString();
+    snapshot[QStringLiteral("output_dir")] = ui->lineEdit_OutputLogPath->text().trimmed();
+    snapshot[QStringLiteral("saved_at")] = QDateTime::currentDateTime().toString(Qt::ISODate);
+    QSettings settings(QStringLiteral("GSZJPlugins"), QStringLiteral("map_quality_check_tools_test"));
+    settings.setValue(QStringLiteral("phase_one_config_snapshot"), QJsonDocument(snapshot).toJson(QJsonDocument::Compact));
+}
+
+map_check_task_manager::map_check_task_manager(QWidget* parent, Qt::WindowFlags fl)
+    : QDialog(parent, fl)
+    , ui(new Ui::map_check_task_manager)
+    , m_globalStartTime(QDateTime::currentDateTime())
+    , m_globalEndTime(QDateTime::currentDateTime())
+{
+    ui->setupUi(this);
+
+    // The designer layout places all task content in a single group box.  The
+    // plugin host can constrain this dialog's height, so make that content
+    // scrollable and keep the progress/action row visible at the bottom.
+    auto* content = ui->groupBox;
+    ui->gridLayout_5->removeWidget(content);
+
+    auto* scrollArea = new QScrollArea(this);
+    scrollArea->setObjectName(QStringLiteral("scrollArea_taskContent"));
+    scrollArea->setFrameShape(QFrame::NoFrame);
+    scrollArea->setWidgetResizable(true);
+    scrollArea->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+
+    content->setMinimumSize(0, 0);
+    content->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    scrollArea->setWidget(content);
+    ui->gridLayout_5->addWidget(scrollArea, 0, 0, 1, 4);
+    ui->gridLayout_5->setRowStretch(0, 1);
+
+    // Give both task lists the extra height when the dialog is enlarged.
+    ui->treeWidget_xmlTaskData->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    ui->groupBox_2->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    ui->gridLayout->setRowStretch(0, 1);
+    ui->gridLayout_3->setRowStretch(2, 1);
+
+    ui->tableWidget_GeopdfPath->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    ui->groupBox_InputData->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    ui->gridLayout_4->setRowStretch(1, 1);
+    ui->gridLayout_3->setRowStretch(0, 1);
+    
+    initAlgorithmMap(); // 初始化算法映射
+
+     // === 新增：初始化成员变量 ===
+    m_currentJsonFilePath.clear();
+    m_saveDir.clear();
+    m_originalTaskTreeData.clear();
+
+    ui->lineEdit->setFixedWidth(150);
+    QString userName = ui->lineEdit->text().trimmed();
+    if (userName.isEmpty()) {
+        userName = "operator";
+    }
+
+    // 初始化表格控件：地图路径、地图SHP、GDB_SHP、标准图例、图面配置
+    ui->tableWidget_GeopdfPath->setColumnCount(5);
+    QStringList headers;
+    headers << "地图路径" << "地图shp文件夹" << "GDB shp文件夹" << "图例文件夹" << "图面配置选择";
+    ui->tableWidget_GeopdfPath->setHorizontalHeaderLabels(headers);
+    // 自适应列宽
+    ui->tableWidget_GeopdfPath->horizontalHeader()->setStretchLastSection(true);
+
+    // 设置表格“即使无数据行，也显示至少一行高度的空白区域”（避免表格高度为0）
+    ui->tableWidget_GeopdfPath->setMinimumHeight(120);  // 保证地图路径列表具备可用的初始显示高度
+    // 或设置垂直表头的“默认行高”，确保空白区域有点击范围
+    ui->tableWidget_GeopdfPath->verticalHeader()->setDefaultSectionSize(30);
+
+    // Designer 中地图列表下方右侧留有空位（截图红圈处），放置独立的数据预检查入口。
+    auto* precheckButton = new QPushButton(QStringLiteral("数据预检查"), ui->groupBox_InputData);
+    precheckButton->setObjectName(QStringLiteral("pushButton_DataPrecheck"));
+    precheckButton->setToolTip(QStringLiteral("检查所有已加载地图的实际注记层要素类型和字体样式"));
+    ui->gridLayout_4->addWidget(precheckButton, 2, 3, 1, 2, Qt::AlignRight);
+    connect(precheckButton, &QPushButton::clicked,
+            this, &map_check_task_manager::on_pushButton_DataPrecheck_clicked);
+
+    // 初始化质检方案treeWidget
+    ui->treeWidget_xmlTaskData->setColumnCount(4);
+    ui->treeWidget_xmlTaskData->setMinimumHeight(120);
+    QStringList treeHeaders;
+    treeHeaders << "子任务列表" << "比例尺" << "质检项名称" << "完成状态";
+    ui->treeWidget_xmlTaskData->setHeaderLabels(treeHeaders);
+    // 子线程信号在开始执行时再连接（见 on_pushButton_Start_clicked）
+}
+
+map_check_task_manager::~map_check_task_manager()
+{
+    if (m_algorithmThread) {
+        m_algorithmThread->requestStop();
+        m_algorithmThread->wait();
+        delete m_algorithmThread;
+        m_algorithmThread = nullptr;
+    }
+    delete ui;
+}
+
+//保存原始任务树结构
+void map_check_task_manager::saveOriginalTaskTree()
+{
+    m_originalTaskTreeData.clear();
+
+    QByteArray data;
+    QDataStream out(&data, QIODevice::WriteOnly);
+
+    // 遍历所有节点
+    QTreeWidgetItemIterator it(ui->treeWidget_xmlTaskData);
+    while (*it) {
+        QTreeWidgetItem* item = *it;
+        int depth = 0;
+        QTreeWidgetItem* parent = item->parent();
+        while (parent) {
+            depth++;
+            parent = parent->parent();
+        }
+
+        out << depth
+            << item->text(0)
+            << item->text(1)
+            << item->text(2)
+            << item->text(3);
+        ++it;
+    }
+
+    m_originalTaskTreeData = data;
+}
+
+//恢复任务树结构
+void map_check_task_manager::restoreOriginalTaskTree()
+{
+    if (m_originalTaskTreeData.isEmpty()) return;
+
+    ui->treeWidget_xmlTaskData->clear();
+    QDataStream in(&m_originalTaskTreeData, QIODevice::ReadOnly);
+
+    QList<QTreeWidgetItem*> stack; // 用栈保存层级关系
+    while (!in.atEnd()) {
+        int depth;
+        QString col0, col1, col2, col3;
+        in >> depth >> col0 >> col1 >> col2 >> col3;
+
+        QTreeWidgetItem* newItem = new QTreeWidgetItem(QStringList() << col0 << col1 << col2 << col3);
+
+        // 根据层级深度恢复结构
+        if (depth == 0) {
+            ui->treeWidget_xmlTaskData->addTopLevelItem(newItem);
+            stack = { newItem };
+        }
+        else {
+            while (stack.size() > depth)
+                stack.removeLast();
+            if (!stack.isEmpty())
+                stack.last()->addChild(newItem);
+            stack.append(newItem);
+        }
+    }
+
+    ui->treeWidget_xmlTaskData->expandAll();
+}
+
+//依据比例尺刷新任务树
+void map_check_task_manager::refreshTaskTreeByScale(int checkedScale)
+{
+    if (!ui->treeWidget_xmlTaskData) return;
+
+    // 将当前任务树完整备份一次
+    QList<QTreeWidgetItem*> allTopItems;
+    for (int i = 0; i < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++i) {
+        allTopItems.append(ui->treeWidget_xmlTaskData->topLevelItem(i)->clone());
+    }
+
+    ui->treeWidget_xmlTaskData->clear();
+
+    // 遍历顶层任务节点
+    for (auto* taskItem : allTopItems) {
+        QString taskName = taskItem->text(0);
+
+        // === 始终保留 图名、比例尺、投影 三个任务 ===
+        if (taskName == "图名" || taskName == "比例尺" || taskName == "投影") {
+            ui->treeWidget_xmlTaskData->addTopLevelItem(taskItem);
+            continue;
+        }
+
+        // 创建新的任务节点，用于存储匹配比例尺的部分
+        QTreeWidgetItem* newTaskItem = new QTreeWidgetItem();
+        newTaskItem->setText(0, taskName);
+
+        // 遍历比例尺节点
+        for (int j = 0; j < taskItem->childCount(); ++j) {
+            QTreeWidgetItem* scaleItem = taskItem->child(j);
+            QString scaleStr = scaleItem->text(1).trimmed();
+            bool ok = false;
+            int scaleVal = scaleStr.toInt(&ok);
+
+            // === 条件1：比例尺为空 ===
+            if (scaleStr.isEmpty()) {
+                newTaskItem->addChild(scaleItem->clone());
+                continue;
+            }
+
+            // === 条件2：比例尺匹配 ===
+            if (ok && scaleVal == checkedScale) {
+                newTaskItem->addChild(scaleItem->clone());
+            }
+        }
+
+        // 若该任务下有匹配比例尺节点，则保留该任务
+        if (newTaskItem->childCount() > 0)
+            ui->treeWidget_xmlTaskData->addTopLevelItem(newTaskItem);
+        else
+            delete newTaskItem; // 无匹配则丢弃
+    }
+
+    ui->treeWidget_xmlTaskData->expandAll();
+
+}
+
+QTreeWidgetItem* map_check_task_manager::findCheckItemByName(const QString& checkItemName)
+{
+    auto findRecursive = [&](auto&& self, QTreeWidgetItem* node) -> QTreeWidgetItem* {
+        if (!node) return nullptr;
+        // 尝试当前节点（部分树结构可能直接在第3列存放名称）
+        if (node->text(2).trimmed() == checkItemName) return node;
+        for (int i = 0; i < node->childCount(); ++i) {
+            QTreeWidgetItem* child = node->child(i);
+            if (!child) continue;
+            if (child->text(2).trimmed() == checkItemName) return child;
+            if (QTreeWidgetItem* got = self(self, child)) return got;
+        }
+        return nullptr;
+    };
+
+    for (int i = 0; i < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* root = ui->treeWidget_xmlTaskData->topLevelItem(i);
+        if (QTreeWidgetItem* found = findRecursive(findRecursive, root)) return found;
+    }
+    return nullptr;
+}
+
+// 新增：根据图层名称和质检项名称精确查找质检项
+QTreeWidgetItem* map_check_task_manager::findCheckItemByLayerAndName(const QString& layerName, const QString& checkItemName)
+{
+    // 先找到对应的图层（顶层节点）
+    QTreeWidgetItem* layerNode = nullptr;
+    for (int i = 0; i < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* topItem = ui->treeWidget_xmlTaskData->topLevelItem(i);
+        if (topItem && topItem->text(0).trimmed() == layerName) {
+            layerNode = topItem;
+            break;
+        }
+    }
+    
+    if (!layerNode) return nullptr;
+    
+    // 在该图层下递归查找质检项
+    auto findRecursive = [&](auto&& self, QTreeWidgetItem* node) -> QTreeWidgetItem* {
+        if (!node) return nullptr;
+        // 检查当前节点是否是目标质检项（第2列存放质检项名称）
+        if (node->text(2).trimmed() == checkItemName) return node;
+        // 递归查找子节点
+        for (int i = 0; i < node->childCount(); ++i) {
+            QTreeWidgetItem* child = node->child(i);
+            if (!child) continue;
+            if (child->text(2).trimmed() == checkItemName) return child;
+            if (QTreeWidgetItem* got = self(self, child)) return got;
+        }
+        return nullptr;
+    };
+    
+    return findRecursive(findRecursive, layerNode);
+}
+
+// ====== 新增：构建任务树快照（主线程调用）
+QVector<map_check_task_manager::LayerTaskSnapshot> map_check_task_manager::buildTaskSnapshot() const
+{
+    QVector<LayerTaskSnapshot> snapshot;
+    for (int taskIdx = 0; taskIdx < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++taskIdx) {
+        QTreeWidgetItem* layerNode = ui->treeWidget_xmlTaskData->topLevelItem(taskIdx);
+        if (!layerNode) continue;
+        LayerTaskSnapshot lt;
+        lt.layerName = layerNode->text(0);
+        QSet<QString> seen;
+        for (int s = 0; s < layerNode->childCount(); ++s) {
+            QTreeWidgetItem* childNode = layerNode->child(s);
+            if (!childNode) continue;
+            for (int c = 0; c < childNode->childCount(); ++c) {
+                QTreeWidgetItem* item = childNode->child(c);
+                if (!item) continue;
+                const QString name = item->text(2).trimmed();
+                if (name.isEmpty()) continue;
+                if (!seen.contains(name)) {
+                    lt.checkItemNames.append(name);
+                    lt.checkItemSeverities.insert(name, m_checkItemSeverity.value(
+                        checkItemSeverityKey(lt.layerName, name), QStringLiteral("未配置")));
+                    seen.insert(name);
+                }
+            }
+            // 某些结构可能只有两层（layer->item），兼容如下：
+            const QString maybeName = childNode->text(2).trimmed();
+            if (!maybeName.isEmpty() && !seen.contains(maybeName)) {
+                lt.checkItemNames.append(maybeName);
+                lt.checkItemSeverities.insert(maybeName, m_checkItemSeverity.value(
+                    checkItemSeverityKey(lt.layerName, maybeName), QStringLiteral("未配置")));
+                seen.insert(maybeName);
+            }
+        }
+        snapshot.append(lt);
+    }
+    return snapshot;
+}
+
+// ====== 新增：构建表格行快照（主线程调用）
+QVector<map_check_task_manager::MapRowSnapshot> map_check_task_manager::buildRowSnapshot() const
+{
+    QVector<MapRowSnapshot> rows;
+    QTableWidget* table = ui->tableWidget_GeopdfPath;
+    const int rowCount = table->rowCount();
+    rows.reserve(rowCount);
+    for (int row = 0; row < rowCount; ++row) {
+        MapRowSnapshot mr;
+        mr.paths = const_cast<map_check_task_manager*>(this)->getFilePathsByRow(row);
+        QFileInfo pdfInfo(mr.paths.pdfPath);
+        mr.mapName = pdfInfo.baseName();
+        if (mr.mapName.isEmpty()) mr.mapName = QString("未命名地图%1").arg(row + 1);
+        rows.append(mr);
+    }
+    return rows;
+}
+
+// QGIS 的 OGR 图层 URI 有时会附带 "|..." 选项；归档时只比较实际 shp 路径。
+static QString localLayerSourcePath(const QString& source)
+{
+    const QString path = source.section(QLatin1Char('|'), 0, 0);
+    return QDir::cleanPath(QFileInfo(path).absoluteFilePath());
+}
+
+// 该函数必须由 Qt 主线程调用。若宿主的 watchResultOutputs 已经加载了根目录
+// 图层，切换其数据源以释放原 shp 的文件句柄；若尚未加载，则直接将归档后的
+// 成果加入工程，避免监听事件因根目录文件已清理而漏加载。
+static bool retargetOrLoadArchivedErrorLayer(
+    const QString& sourcePath, const QString& destinationPath, const QString& displayName,
+    bool loadIfAbsent)
+{
+    QgsProject* project = QgsProject::instance();
+    if (!project) return false;
+
+    const QString normalizedSource = localLayerSourcePath(sourcePath);
+    bool foundLoadedLayer = false;
+    bool retargetSucceeded = true;
+    const auto layers = project->mapLayers();
+    for (QgsMapLayer* mapLayer : layers) {
+        QgsVectorLayer* vectorLayer = qobject_cast<QgsVectorLayer*>(mapLayer);
+        if (!vectorLayer || localLayerSourcePath(vectorLayer->source()) != normalizedSource) continue;
+
+        foundLoadedLayer = true;
+        vectorLayer->setDataSource(destinationPath, vectorLayer->name(),
+                                   vectorLayer->providerType(), false);
+        if (vectorLayer->isValid() && !placeQualityResultLayer(project, vectorLayer, destinationPath)) {
+            qWarning() << "[error layer archive] Unable to group layer:" << destinationPath;
+            vectorLayer->setDataSource(sourcePath, vectorLayer->name(),
+                                       vectorLayer->providerType(), false);
+            retargetSucceeded = false;
+        }
+        if (!vectorLayer->isValid()) {
+            qWarning() << "[错误图层归档] 无法切换宿主图层数据源:"
+                       << sourcePath << "->" << destinationPath;
+            retargetSucceeded = false;
+        }
+    }
+    if (foundLoadedLayer) return retargetSucceeded;
+    if (!loadIfAbsent) return true;
+
+    QgsVectorLayer* archivedLayer = new QgsVectorLayer(destinationPath, displayName,
+                                                        QStringLiteral("ogr"));
+    if (!archivedLayer->isValid()) {
+        qWarning() << "[错误图层归档] 无法加载归档后的图层:" << destinationPath;
+        delete archivedLayer;
+        return false;
+    }
+    project->addMapLayer(archivedLayer, false);
+    if (!placeQualityResultLayer(project, archivedLayer, destinationPath)) {
+        project->removeMapLayer(archivedLayer->id());
+        return false;
+    }
+    return true;
+}
+
+static bool removeArchivedSourceFiles(const QStringList& sourceFilePaths)
+{
+    if (sourceFilePaths.isEmpty()) return true;
+
+    bool removedAllFiles = true;
+    // 附属文件先清理，主 shp 最后清理；任何失败都由调用方延迟重试。
+    for (int i = 1; i < sourceFilePaths.size(); ++i) {
+        const QString& sourcePath = sourceFilePaths.at(i);
+        if (QFile::exists(sourcePath) && !QFile::remove(sourcePath)) {
+            qWarning() << "[错误图层归档] 暂时无法清理根目录附属文件:" << sourcePath;
+            removedAllFiles = false;
+        }
+    }
+    const QString& primaryPath = sourceFilePaths.first();
+    if (QFile::exists(primaryPath) && !QFile::remove(primaryPath)) {
+        qWarning() << "[错误图层归档] 暂时无法清理根目录主文件:" << primaryPath;
+        removedAllFiles = false;
+    }
+    return removedAllFiles;
+}
+
+// watchResultOutputs 可能在首次切换后才将根目录图层加入工程。延迟重试时先
+// 再次重定向这些图层，随后清理残留文件，避免根目录留下不完整的 shp 组。
+static void scheduleArchivedSourceCleanup(
+    const QStringList& sourceFilePaths, const QString& sourcePath,
+    const QString& destinationPath, const QString& displayName, int retriesRemaining)
+{
+    QCoreApplication* application = QCoreApplication::instance();
+    if (!application || retriesRemaining <= 0) return;
+
+    QTimer::singleShot(800, application,
+        [sourceFilePaths, sourcePath, destinationPath, displayName, retriesRemaining]() {
+            if (!retargetOrLoadArchivedErrorLayer(
+                    sourcePath, destinationPath, displayName, false)) {
+                qWarning() << "[错误图层归档] 延迟重试时图层重定向失败:" << sourcePath;
+            }
+            if (!removeArchivedSourceFiles(sourceFilePaths) && retriesRemaining > 1) {
+                scheduleArchivedSourceCleanup(sourceFilePaths, sourcePath, destinationPath,
+                                              displayName, retriesRemaining - 1);
+            }
+        });
+}
+
+int map_check_task_manager::archiveErrorLayersBySeverity(
+    int row, const QString& errorResultDir,
+    const QHash<QString, QString>& layerSeverities)
+{
+    QDir rootDir(errorResultDir);
+    if (!rootDir.exists()) rootDir.mkpath(QStringLiteral("."));
+
+    // 即使本图没有错误，也保持三个严重程度目录结构一致。
+    const QStringList severityFolders {
+        QStringLiteral("高严重程度"), QStringLiteral("中严重程度"), QStringLiteral("低严重程度")
+    };
+    for (const QString& severity : severityFolders) {
+        rootDir.mkpath(severity);
+    }
+
+    QHash<QString, QString> replacements;
+    int archivedCount = 0;
+    int unconfiguredCount = 0;
+
+    for (auto it = layerSeverities.constBegin(); it != layerSeverities.constEnd(); ++it) {
+        const QString severityFolder = severityFolderName(it.value());
+        if (severityFolder.isEmpty()) {
+            ++unconfiguredCount;
+            continue;
+        }
+
+        const QString sourcePath = QDir::cleanPath(it.key());
+        const QFileInfo sourceInfo(sourcePath);
+        if (!sourceInfo.exists() || !isFinalErrorLayerFile(sourceInfo)) continue;
+
+        const QDir destinationDir(rootDir.filePath(severityFolder));
+        const QString sourceBaseName = sourceInfo.completeBaseName();
+        const QString suffix = sourceInfo.suffix();
+        const bool replacePrevious = suffix.compare(QStringLiteral("shp"), Qt::CaseInsensitive) == 0
+            && CheckResultReplacement::supports(sourceBaseName);
+        QTemporaryDir backupDirectory;
+        QList<QPair<QString, QString>> previousFiles;
+        const auto restorePreviousFiles = [&]() {
+            bool restored = true;
+            for (const auto& file : previousFiles) {
+                if (!QFileInfo::exists(file.first) && !QFile::copy(file.second, file.first)) {
+                    qWarning() << "[错误图层归档] 无法恢复旧文件:" << file.first;
+                    restored = false;
+                }
+            }
+            if (!restored) {
+                backupDirectory.setAutoRemove(false);
+                qWarning() << "[错误图层归档] 旧文件备份保留在:" << backupDirectory.path();
+            }
+        };
+        if (replacePrevious) {
+            if (!backupDirectory.isValid()) {
+                qWarning() << "[错误图层归档] 无法创建旧文件备份目录";
+                continue;
+            }
+            for (const QString& folder : severityFolders) {
+                const QDir previousDir(rootDir.filePath(folder));
+                for (const QFileInfo& file : previousDir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot)) {
+                    if (!CheckResultReplacement::owns(sourceBaseName, file.fileName())) continue;
+                    const QString backup = QDir(backupDirectory.path()).filePath(
+                        QString::number(previousFiles.size()) + QLatin1Char('_') + file.fileName());
+                    previousFiles.append(qMakePair(file.absoluteFilePath(), backup));
+                }
+            }
+            bool backedUp = true;
+            for (const auto& file : previousFiles) {
+                if (!QFile::copy(file.first, file.second)) {
+                    qWarning() << "[错误图层归档] 无法备份旧文件:" << file.first;
+                    backedUp = false;
+                    break;
+                }
+            }
+            if (!backedUp) continue;
+            const auto unloadPrevious = [&]() {
+                QgsProject* project = QgsProject::instance();
+                if (!project) return;
+                QSet<QString> previousPaths;
+                for (const auto& file : previousFiles)
+                    previousPaths.insert(localLayerSourcePath(file.first));
+                for (QgsMapLayer* layer : project->mapLayers()) {
+                    auto* vector = qobject_cast<QgsVectorLayer*>(layer);
+                    if (vector && previousPaths.contains(localLayerSourcePath(vector->source())))
+                        project->removeMapLayer(vector->id());
+                }
+            };
+            QCoreApplication* application = QCoreApplication::instance();
+            if (!application || QThread::currentThread() == application->thread()) unloadPrevious();
+            else if (!QMetaObject::invokeMethod(application, unloadPrevious, Qt::BlockingQueuedConnection)) {
+                qWarning() << "[错误图层归档] 无法卸载旧图层";
+                continue;
+            }
+            bool removed = true;
+            for (const auto& file : previousFiles) {
+                if (!QFile::remove(file.first)) {
+                    qWarning() << "[错误图层归档] 无法清理旧文件:" << file.first;
+                    removed = false;
+                    break;
+                }
+            }
+            if (!removed) {
+                restorePreviousFiles();
+                continue;
+            }
+        }
+        QString destinationBaseName = sourceBaseName;
+        QString destinationPrimaryPath = destinationDir.filePath(destinationBaseName + QLatin1Char('.') + suffix);
+        for (int suffixIndex = 2; QFileInfo::exists(destinationPrimaryPath); ++suffixIndex) {
+            destinationBaseName = sourceBaseName + QStringLiteral("_%1").arg(suffixIndex);
+            destinationPrimaryPath = destinationDir.filePath(destinationBaseName + QLatin1Char('.') + suffix);
+        }
+
+        const QDir sourceDir = sourceInfo.dir();
+        QStringList sidecarNames = sourceDir.entryList(
+            QStringList() << (sourceBaseName + QStringLiteral(".*")),
+            QDir::Files | QDir::NoDotAndDotDot);
+        sidecarNames.removeAll(sourceInfo.fileName());
+        sidecarNames.prepend(sourceInfo.fileName());
+        QStringList sourceFilePaths;
+
+        // watchResultOutputs 可能已打开根目录 shp，Windows 下直接 rename 会失败。
+        // 先复制完整 shp 组，再让宿主图层指向归档副本，最后清理根目录原文件。
+        QStringList copiedDestinationPaths;
+        bool copiedAllFiles = true;
+        for (const QString& sidecarName : sidecarNames) {
+            if (!sidecarName.startsWith(sourceBaseName + QLatin1Char('.'))) continue;
+            const QString sourceSidecarPath = sourceDir.filePath(sidecarName);
+            const QString suffixPart = sidecarName.mid(sourceBaseName.size());
+            const QString destinationPath = destinationDir.filePath(destinationBaseName + suffixPart);
+            if (!QFile::copy(sourceSidecarPath, destinationPath)) {
+                qWarning() << "[错误图层归档] 无法复制文件:" << sourceSidecarPath;
+                copiedAllFiles = false;
+                break;
+            }
+            copiedDestinationPaths.append(destinationPath);
+            sourceFilePaths.append(sourceSidecarPath);
+        }
+        if (!copiedAllFiles) {
+            for (const QString& copiedPath : copiedDestinationPaths) QFile::remove(copiedPath);
+            if (replacePrevious) restorePreviousFiles();
+            continue;
+        }
+
+        bool dataSourceUpdated = false;
+        const auto updateDataSource = [&]() {
+            dataSourceUpdated = retargetOrLoadArchivedErrorLayer(
+                sourcePath, destinationPrimaryPath, sourceBaseName, true);
+        };
+        QCoreApplication* application = QCoreApplication::instance();
+        if (!application || QThread::currentThread() == application->thread()) {
+            updateDataSource();
+        } else if (!QMetaObject::invokeMethod(application, updateDataSource,
+                                               Qt::BlockingQueuedConnection)) {
+            qWarning() << "[错误图层归档] 无法在主线程切换图层数据源:" << sourcePath;
+        }
+        if (!dataSourceUpdated) {
+            for (const QString& copiedPath : copiedDestinationPaths) QFile::remove(copiedPath);
+            if (replacePrevious) restorePreviousFiles();
+            continue;
+        }
+
+        replacements.insert(sourcePath, QDir::cleanPath(destinationPrimaryPath));
+        ++archivedCount;
+        if (!removeArchivedSourceFiles(sourceFilePaths)) {
+            scheduleArchivedSourceCleanup(sourceFilePaths, sourcePath, destinationPrimaryPath,
+                                          sourceBaseName, 5);
+        }
+    }
+
+    if (!replacements.isEmpty()) {
+        const QString keyPrefix = QString::number(row) + QLatin1Char('_');
+        for (auto resultIt = m_checkResults.begin(); resultIt != m_checkResults.end(); ++resultIt) {
+            if (!resultIt.key().startsWith(keyPrefix)) continue;
+            resultIt.value().info = replaceArchivedLayerPaths(resultIt.value().info, replacements).toObject();
+        }
+        m_waterClassificationSummary = replaceArchivedLayerPaths(
+            m_waterClassificationSummary, replacements).toObject();
+
+        const QString jsonDirPath = QDir(QFileInfo(errorResultDir).absolutePath())
+            .filePath(QStringLiteral("质检json文件"));
+        const QFileInfoList jsonFiles = QDir(jsonDirPath).entryInfoList(
+            QStringList{QStringLiteral("*.json")}, QDir::Files | QDir::NoDotAndDotDot);
+        for (const QFileInfo& jsonInfo : jsonFiles) {
+            QFile input(jsonInfo.absoluteFilePath());
+            if (!input.open(QIODevice::ReadOnly)) continue;
+            const QJsonDocument document = QJsonDocument::fromJson(input.readAll());
+            input.close();
+            if (!document.isObject()) continue;
+            const QJsonObject rewritten = replaceArchivedLayerPaths(document.object(), replacements).toObject();
+            if (rewritten == document.object()) continue;
+            QSaveFile output(jsonInfo.absoluteFilePath());
+            const QByteArray bytes = QJsonDocument(rewritten).toJson(QJsonDocument::Indented);
+            if (!output.open(QIODevice::WriteOnly) || output.write(bytes) != bytes.size() || !output.commit())
+                qWarning() << "[水系分类输出] 无法更新归档后的 JSON 路径:" << jsonInfo.absoluteFilePath();
+        }
+    }
+
+    // The host can load or regroup results while this task is running. Reconcile
+    // every identified final file after archiving, on the project GUI thread.
+    QStringList finalPaths;
+    for (auto it = layerSeverities.constBegin(); it != layerSeverities.constEnd(); ++it) {
+        const QString source = QDir::cleanPath(it.key());
+        const QString finalPath = replacements.value(source, source);
+        if (QFileInfo(finalPath).isFile() && !finalPaths.contains(finalPath)) finalPaths.append(finalPath);
+    }
+    int availableLayers = 0;
+    const auto reconcile = [&]() {
+        availableLayers = ensureQualityResultLayers(QgsProject::instance(), finalPaths);
+    };
+    QCoreApplication* application = QCoreApplication::instance();
+    if (!application || QThread::currentThread() == application->thread()) reconcile();
+    else if (!QMetaObject::invokeMethod(application, reconcile, Qt::BlockingQueuedConnection))
+        qWarning() << "[error layer archive] Could not reconcile layers on GUI thread";
+    if (availableLayers != finalPaths.size())
+        qWarning() << "[error layer archive] Final layers available:" << availableLayers << "/" << finalPaths.size();
+
+    if (unconfiguredCount > 0) {
+        qWarning() << "[错误图层归档] 有" << unconfiguredCount
+                   << "个错误图层未配置高/中/低严重程度，保留在根目录。";
+    }
+    return archivedCount;
+}
+
+// ====== 新增：按名称在主线程更新图标（工作线程发起）
+void map_check_task_manager::updateCheckItemStatusIconByName(
+    int taskRow, const QString& layerName, const QString& checkItemName,
+    const CheckItemResult& result)
+{
+    // 任务树只显示当前图幅。丢弃上一幅图延迟送达的 UI 更新，避免状态串图。
+    if (taskRow != m_displayedTaskRow) {
+        qDebug() << "[图标更新] 忽略非当前图幅的延迟更新 - 图幅:" << taskRow
+                 << "| 当前图幅:" << m_displayedTaskRow
+                 << "| 图层:" << layerName << "| 质检项:" << checkItemName;
+        return;
+    }
+
+    // 【修复】直接使用传入的图层名称进行精确查找
+    QTreeWidgetItem* item = findCheckItemByLayerAndName(layerName, checkItemName);
+    
+    if (!item) {
+        qDebug() << "[图标更新] 警告：未找到质检项 - 图层:" << layerName << "| 质检项:" << checkItemName;
+        return;
+    }
+    
+    qDebug() << "[图标更新] 找到质检项 - 图层:" << layerName << "| 质检项:" << checkItemName;
+
+    // 图标状态严格使用本次算法返回的结果，不能读取可被下一幅图覆盖的全局 JSON 路径。
+    updateCheckItemStatusIcon(item, result);
+}
+
+// 创建带图标的单元格部件
+QWidget* map_check_task_manager::createCellWidget(int row, int col, const QString& text)
+{
+    QWidget* widget = new QWidget(ui->tableWidget_GeopdfPath);
+
+    // 设置焦点策略，允许焦点通过制表键获得，但不接收鼠标焦点
+    widget->setFocusPolicy(Qt::StrongFocus);
+
+    QHBoxLayout* layout = new QHBoxLayout(widget);
+    layout->setContentsMargins(2, 2, 2, 2);
+
+    // 文本标签（显示路径，可选中复制）
+    QLabel* label = new QLabel(text, widget);
+    label->setObjectName("pathLabel");
+    label->setWordWrap(false);
+    label->setTextInteractionFlags(Qt::TextSelectableByMouse);
+
+    // 标签不接收鼠标焦点
+    label->setFocusPolicy(Qt::NoFocus);
+
+
+    // 加载图标按钮
+    QPushButton* button = new QPushButton(widget);
+    button->setObjectName("loadButton");
+    button->setFixedSize(24, 24);
+
+    // 尝试加载图标（替换为实际图标路径）
+    QPixmap icon(":/icons/open_folder.png"); // 示例：资源文件路径
+    if (!icon.isNull()) {
+        button->setIcon(QIcon(icon.scaled(16, 16, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    }
+    else {
+        button->setText("...");
+    }
+
+    // 第5列（图面配置选择）的按钮逻辑
+    if (col == 4) {
+        connect(button, &QPushButton::clicked, [this, button, col, label]() {
+            // 动态获取按钮所在的行号，避免删除行后行号错乱
+            int currentRow = -1;
+            for (int r = 0; r < ui->tableWidget_GeopdfPath->rowCount(); ++r) {
+                QWidget* cellWidget = ui->tableWidget_GeopdfPath->cellWidget(r, col);
+                if (cellWidget && cellWidget->findChild<QPushButton*>("loadButton") == button) {
+                    currentRow = r;
+                    break;
+                }
+            }
+            if (currentRow < 0) return;
+            
+            // 1. 从当前行的第1列（shp文件夹）和第3列（gdb_shp文件夹）获取路径
+        // 第2列：shp文件夹路径（通过UserRole获取完整路径）
+            QTableWidgetItem* shpItem = ui->tableWidget_GeopdfPath->item(currentRow, 1);
+            QString shpPath = shpItem ? shpItem->data(Qt::UserRole).toString().trimmed() : "";
+
+            // 第3列：gdb_shp文件夹路径（通过UserRole获取完整路径）
+            QTableWidgetItem* gdbShpItem = ui->tableWidget_GeopdfPath->item(currentRow, 2);
+            QString gdbShpPath = gdbShpItem ? gdbShpItem->data(Qt::UserRole).toString().trimmed() : "";
+
+            // 2. 验证路径（可选：提示用户先选择文件夹）
+            if (shpPath.isEmpty() || gdbShpPath.isEmpty()) {
+                QMessageBox::warning(this, tr("警告"), tr("请先选择「shp文件夹」和「gdb_shp文件夹」！"));
+                return;
+            }
+
+            // 3. 传递路径给Drawing_Layout对话框（关键修改）
+            Drawing_Layout dialog(shpPath, gdbShpPath, this);
+            if (dialog.exec() == QDialog::Accepted) {
+                // 获取对话框中保存的CSV路径
+                QString csvPath = dialog.ui->lineEdit_savefile->text().trimmed();
+                if (!csvPath.isEmpty()) {
+                    // 将路径显示到列表
+                    label->setText(csvPath);
+
+                    // 存储完整路径到表格项
+                    QTableWidgetItem* item = ui->tableWidget_GeopdfPath->item(currentRow, col);
+                    if (item) {
+                        item->setData(Qt::UserRole, csvPath);
+                    }
+                    else {
+                        item = new QTableWidgetItem();
+                        item->setData(Qt::UserRole, csvPath);
+                        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+                        ui->tableWidget_GeopdfPath->setItem(currentRow, col, item);
+                    }
+                    ui->tableWidget_GeopdfPath->resizeColumnsToContents();
+                }
+            }
+            });
+    }
+    else {
+
+        // 按钮点击：打开文件选择框，并同步更新标签和表格项数据
+        connect(button, &QPushButton::clicked, [this, button, col, label]() {
+            // 动态获取按钮所在的行号，避免删除行后行号错乱
+            int currentRow = -1;
+            for (int r = 0; r < ui->tableWidget_GeopdfPath->rowCount(); ++r) {
+                QWidget* cellWidget = ui->tableWidget_GeopdfPath->cellWidget(r, col);
+                if (cellWidget && cellWidget->findChild<QPushButton*>("loadButton") == button) {
+                    currentRow = r;
+                    break;
+                }
+            }
+            if (currentRow < 0) return;
+            // 步骤1：打开文件/文件夹选择框（逻辑与之前一致）
+            QString selectedPath;
+            bool isFile = (col == 0); // 第0列是PDF文件，其他列是文件夹
+            QString dialogTitle = isFile ? "选择PDF文件" : "选择文件夹";
+            QString filter = isFile ? "PDF文件 (*.pdf);;所有文件 (*)" : "";
+
+            if (isFile) {
+                QStringList filePaths = QFileDialog::getOpenFileNames(this, dialogTitle, QString(), filter);
+                if (filePaths.isEmpty()) return;
+                selectedPath = filePaths[0];
+            }
+            else {
+                selectedPath = QFileDialog::getExistingDirectory(this, dialogTitle, QString());
+                if (selectedPath.isEmpty()) return;
+            }
+
+            // 提取无后缀文件名（仅文件列处理）
+            QString displayText = selectedPath;
+            if (isFile) {
+                QFileInfo fileInfo(selectedPath);
+                displayText = fileInfo.baseName(); // 去除后缀
+            }
+
+
+            // 步骤2：更新自定义部件的标签显示
+            label->setText(displayText); // 标签显示无后缀文件名
+
+            // 步骤3：将路径存储到表格项的隐藏数据中（关键：用setData存真实路径）
+            QTableWidgetItem* item = ui->tableWidget_GeopdfPath->item(currentRow, col);
+            if (item) {
+                item->setData(Qt::UserRole, selectedPath); // 用UserRole存储真实路径
+            }
+            else {
+                // 若表格项不存在，创建新项并存储
+                item = new QTableWidgetItem();
+                item->setData(Qt::UserRole, selectedPath);
+                item->setFlags(item->flags() & ~Qt::ItemIsEditable); // 禁止编辑
+                ui->tableWidget_GeopdfPath->setItem(currentRow, col, item);
+            }
+            // 内容修改后调整列宽
+            ui->tableWidget_GeopdfPath->resizeColumnsToContents();
+            });
+    }
+
+    // 布局：标签占大部分，按钮居右
+    layout->addWidget(label, 1);
+    layout->addWidget(button);
+
+    return widget;
+}
+
+//加载xml文件夹
+void map_check_task_manager::on_pushButton_loadxmlfiles_clicked()
+{
+    // 选择文件夹
+    QString folderPath = QFileDialog::getExistingDirectory(
+        this,
+        tr("选择质检方案规则文件所在文件夹"),
+        QString()
+    );
+
+    if (folderPath.isEmpty()) {
+        return;
+    }
+
+    // 显示文件夹路径
+    ui->lineEdit_xmlfiles->setText(folderPath);
+
+    // 清空旧任务树
+    ui->treeWidget_xmlTaskData->clear();
+
+    // 遍历文件夹中的XML文件
+    QDir dir(folderPath);
+    QStringList xmlFiles = dir.entryList(QStringList() << "*.xml", QDir::Files);
+
+    // === 新增：固定加载顺序 ===
+    QStringList fixedOrder = { "图名", "比例尺", "投影" };
+    QStringList orderedFiles;
+    QStringList others;
+
+    // 先分离固定项和其他项
+    for (const QString& file : xmlFiles) {
+        QString base = QFileInfo(file).baseName();
+        if (fixedOrder.contains(base))
+            orderedFiles.append(file);
+        else
+            others.append(file);
+    }
+
+    // 按固定顺序排序（图名→比例尺→投影）
+    QStringList sortedFiles;
+    for (const QString& name : fixedOrder) {
+        for (const QString& file : orderedFiles) {
+            if (QFileInfo(file).baseName() == name)
+                sortedFiles.append(file);
+        }
+    }
+    sortedFiles.append(others); // 其他文件顺序不变
+
+    // === 清空并记录路径 ===
+    m_xmlPaths.clear();
+    m_checkItemSeverity.clear();
+    for (const QString& xmlFile : sortedFiles) {
+        QString xmlFilePath = dir.absoluteFilePath(xmlFile);
+        m_xmlPaths.append(xmlFilePath);
+
+        // 创建XML文件对应的顶层节点
+        QTreeWidgetItem* fileItem = new QTreeWidgetItem(ui->treeWidget_xmlTaskData);
+        QFileInfo fileInfo(xmlFile);
+        fileItem->setText(0, fileInfo.baseName());
+
+        // 调用统一解析函数
+        parseXmlFile(xmlFilePath, fileItem);
+    }
+
+    // 展开并保存原始结构
+    ui->treeWidget_xmlTaskData->expandAll();
+    saveOriginalTaskTree();
+    
+    // 【诊断】输出已加载的图层名称列表
+    qDebug() << "========== 已加载的质检任务图层 ==========";
+    for (int i = 0; i < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = ui->treeWidget_xmlTaskData->topLevelItem(i);
+        QString layerName = item->text(0);
+        int checkItemCount = 0;
+        for (int j = 0; j < item->childCount(); ++j) {
+            checkItemCount += item->child(j)->childCount();
+        }
+        qDebug() << QString("  [%1] 图层名称: \"%2\" (质检项数: %3)")
+                    .arg(i+1).arg(layerName).arg(checkItemCount);
+    }
+    qDebug() << "==========================================";
+}
+
+void map_check_task_manager::on_pushButton_loadxmlfile_clicked()
+{
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        this,
+        tr("选择XML质检方案文件"),
+        QString(),
+        tr("XML文件 (*.xml);;所有文件 (*)")
+    );
+
+    if (filePaths.isEmpty()) {
+        return;
+    }
+
+    // === 新增：固定加载顺序 ===
+    QStringList fixedOrder = { "图名", "比例尺", "投影" };
+    QStringList orderedPaths;
+    QStringList others;
+
+    for (const QString& path : filePaths) {
+        QString base = QFileInfo(path).baseName();
+        if (fixedOrder.contains(base))
+            orderedPaths.append(path);
+        else
+            others.append(path);
+    }
+
+    QStringList sortedPaths;
+    for (const QString& name : fixedOrder) {
+        for (const QString& path : orderedPaths) {
+            if (QFileInfo(path).baseName() == name)
+                sortedPaths.append(path);
+        }
+    }
+    sortedPaths.append(others);
+
+    // 存储新的XML路径
+    m_xmlPaths = sortedPaths;
+    m_checkItemSeverity.clear();
+    ui->lineEdit_xmlfiles->setText(sortedPaths.first());
+    ui->treeWidget_xmlTaskData->clear();
+
+    // 加载XML任务
+    for (const QString& xmlFilePath : sortedPaths) {
+        QFileInfo fileInfo(xmlFilePath);
+        QTreeWidgetItem* fileItem = new QTreeWidgetItem(ui->treeWidget_xmlTaskData);
+        fileItem->setText(0, fileInfo.baseName());
+        parseXmlFile(xmlFilePath, fileItem);
+    }
+
+    ui->treeWidget_xmlTaskData->expandAll();
+    saveOriginalTaskTree();
+    
+    // 【诊断】输出已加载的图层名称列表
+    qDebug() << "========== 已加载的质检任务图层 ==========";
+    for (int i = 0; i < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* item = ui->treeWidget_xmlTaskData->topLevelItem(i);
+        QString layerName = item->text(0);
+        int checkItemCount = 0;
+        for (int j = 0; j < item->childCount(); ++j) {
+            checkItemCount += item->child(j)->childCount();
+        }
+        qDebug() << QString("  [%1] 图层名称: \"%2\" (质检项数: %3)")
+                    .arg(i+1).arg(layerName).arg(checkItemCount);
+    }
+    qDebug() << "==========================================";
+}
+
+// 上调子任务优先级
+void map_check_task_manager::on_pushButton_uptask_clicked()
+{
+    QTreeWidgetItem* currentItem = ui->treeWidget_xmlTaskData->currentItem();
+    if (!currentItem) {
+        QMessageBox::information(this, tr("提示"), tr("请先选中要上调的子任务列表或质检项"));
+        return;
+    }
+
+    // 通用函数：根据图标判断质检状态
+    auto getStatusByIcon = [this](QTreeWidgetItem* item) {
+        QIcon icon = item->icon(3);
+        if (icon.isNull()) return CompletionStatus::NotChecked;
+        if (icon.name().contains("红叉", Qt::CaseInsensitive)) return CompletionStatus::HasErrors;
+        if (icon.name().contains("叹号", Qt::CaseInsensitive)) return CompletionStatus::HasErrors;
+        if (icon.name().contains("勾选", Qt::CaseInsensitive)) return CompletionStatus::Passed;
+        return CompletionStatus::NotChecked;
+    };
+
+    QTreeWidgetItem* parent = currentItem->parent();
+
+    // ===================== 情况1：顶层子任务 =====================
+    if (!parent) {
+        int currentIndex = ui->treeWidget_xmlTaskData->indexOfTopLevelItem(currentItem);
+        if (currentIndex <= 0) {
+            QMessageBox::information(this, tr("提示"), tr("已是第一个子任务列表，无法继续上调"));
+            return;
+        }
+
+        QList<QTreeWidgetItem*> childItems;
+        for (int i = 0; i < currentItem->childCount(); ++i)
+            childItems.append(currentItem->child(i)->clone());
+
+        ui->treeWidget_xmlTaskData->takeTopLevelItem(currentIndex);
+        QTreeWidgetItem* newItem = new QTreeWidgetItem(*currentItem);
+        ui->treeWidget_xmlTaskData->insertTopLevelItem(currentIndex - 1, newItem);
+
+        for (auto* child : childItems)
+            newItem->addChild(child);
+
+        delete currentItem;
+        ui->treeWidget_xmlTaskData->setCurrentItem(newItem);
+        return;
+    }
+
+    // ===================== 情况2：比例尺节点 =====================
+    if (!currentItem->text(1).isEmpty() && currentItem->text(2).isEmpty()) {
+        int currentIndex = parent->indexOfChild(currentItem);
+        if (currentIndex <= 0) {
+            QMessageBox::information(this, tr("提示"), tr("已是第一个比例尺节点，无法继续上调"));
+            return;
+        }
+
+        QList<QTreeWidgetItem*> childItems;
+        QList<CompletionStatus> childStatus;
+        for (int i = 0; i < currentItem->childCount(); ++i) {
+            auto* child = currentItem->child(i);
+            childItems.append(child->clone());
+            childStatus.append(getStatusByIcon(child));
+        }
+
+        QString scaleText = currentItem->text(1);
+        parent->takeChild(currentIndex);
+        QTreeWidgetItem* newItem = new QTreeWidgetItem();
+        newItem->setText(1, scaleText);
+
+        parent->insertChild(currentIndex - 1, newItem);
+
+        // === 修改点：只恢复子节点图标，比例尺节点本身不设置任何图标 ===
+        for (int i = 0; i < childItems.size(); ++i) {
+            newItem->addChild(childItems[i]);
+            setCompletionStatusIcon(childItems[i], childStatus[i]);
+        }
+
+        delete currentItem;
+        ui->treeWidget_xmlTaskData->setCurrentItem(newItem);
+        return;
+    }
+
+    // ===================== 情况3：质检项节点 =====================
+    int currentIndex = parent->indexOfChild(currentItem);
+    if (currentIndex <= 0) {
+        QMessageBox::information(this, tr("提示"), tr("已是当前子任务列表的第一个质检项，无法继续上调"));
+        return;
+    }
+
+    QString scaleText = currentItem->text(1);
+    QString nameText = currentItem->text(2);
+    CompletionStatus status = getStatusByIcon(currentItem);
+
+    parent->takeChild(currentIndex);
+    QTreeWidgetItem* newItem = new QTreeWidgetItem();
+    newItem->setText(1, scaleText);
+    newItem->setText(2, nameText);
+
+    // === 质检项节点需要保留图标 ===
+    setCompletionStatusIcon(newItem, status);
+
+    parent->insertChild(currentIndex - 1, newItem);
+    delete currentItem;
+    ui->treeWidget_xmlTaskData->setCurrentItem(newItem);
+}
+
+
+// 下调子任务优先级
+void map_check_task_manager::on_pushButton_downtask_clicked()
+{
+    QTreeWidgetItem* currentItem = ui->treeWidget_xmlTaskData->currentItem();
+    if (!currentItem) {
+        QMessageBox::information(this, tr("提示"), tr("请先选中要下调的子任务列表或质检项"));
+        return;
+    }
+
+    auto getStatusByIcon = [this](QTreeWidgetItem* item) {
+        QIcon icon = item->icon(3);
+        if (icon.isNull()) return CompletionStatus::NotChecked;
+        if (icon.name().contains("红叉", Qt::CaseInsensitive)) return CompletionStatus::HasErrors;
+        if (icon.name().contains("叹号", Qt::CaseInsensitive)) return CompletionStatus::HasErrors;
+        if (icon.name().contains("勾选", Qt::CaseInsensitive)) return CompletionStatus::Passed;
+        return CompletionStatus::NotChecked;
+    };
+
+    QTreeWidgetItem* parent = currentItem->parent();
+
+    // ===================== 情况1：顶层子任务 =====================
+    if (!parent) {
+        int currentIndex = ui->treeWidget_xmlTaskData->indexOfTopLevelItem(currentItem);
+        int totalCount = ui->treeWidget_xmlTaskData->topLevelItemCount();
+        if (currentIndex >= totalCount - 1) {
+            QMessageBox::information(this, tr("提示"), tr("已是最后一个子任务列表，无法继续下调"));
+            return;
+        }
+
+        QList<QTreeWidgetItem*> childItems;
+        for (int i = 0; i < currentItem->childCount(); ++i)
+            childItems.append(currentItem->child(i)->clone());
+
+        ui->treeWidget_xmlTaskData->takeTopLevelItem(currentIndex);
+        QTreeWidgetItem* newItem = new QTreeWidgetItem(*currentItem);
+        ui->treeWidget_xmlTaskData->insertTopLevelItem(currentIndex + 1, newItem);
+
+        for (auto* child : childItems)
+            newItem->addChild(child);
+
+        delete currentItem;
+        ui->treeWidget_xmlTaskData->setCurrentItem(newItem);
+        return;
+    }
+
+    // ===================== 情况2：比例尺节点 =====================
+    if (!currentItem->text(1).isEmpty() && currentItem->text(2).isEmpty()) {
+        int currentIndex = parent->indexOfChild(currentItem);
+        int totalCount = parent->childCount();
+        if (currentIndex >= totalCount - 1) {
+            QMessageBox::information(this, tr("提示"), tr("已是最后一个比例尺节点，无法继续下调"));
+            return;
+        }
+
+        QList<QTreeWidgetItem*> childItems;
+        QList<CompletionStatus> childStatus;
+        for (int i = 0; i < currentItem->childCount(); ++i) {
+            auto* child = currentItem->child(i);
+            childItems.append(child->clone());
+            childStatus.append(getStatusByIcon(child));
+        }
+
+        QString scaleText = currentItem->text(1);
+        parent->takeChild(currentIndex);
+
+        QTreeWidgetItem* newItem = new QTreeWidgetItem();
+        newItem->setText(1, scaleText);
+
+        parent->insertChild(currentIndex + 1, newItem);
+
+        // === 修改点：比例尺节点不设置图标，仅恢复其子节点 ===
+        for (int i = 0; i < childItems.size(); ++i) {
+            newItem->addChild(childItems[i]);
+            setCompletionStatusIcon(childItems[i], childStatus[i]);
+        }
+
+        delete currentItem;
+        ui->treeWidget_xmlTaskData->setCurrentItem(newItem);
+        return;
+    }
+
+    // ===================== 情况3：质检项节点 =====================
+    int currentIndex = parent->indexOfChild(currentItem);
+    int totalCount = parent->childCount();
+    if (currentIndex >= totalCount - 1) {
+        QMessageBox::information(this, tr("提示"), tr("已是当前子任务列表的最后一个质检项，无法继续下调"));
+        return;
+    }
+
+    QString scaleText = currentItem->text(1);
+    QString nameText = currentItem->text(2);
+    CompletionStatus status = getStatusByIcon(currentItem);
+
+    parent->takeChild(currentIndex);
+    QTreeWidgetItem* newItem = new QTreeWidgetItem();
+    newItem->setText(1, scaleText);
+    newItem->setText(2, nameText);
+
+    // === 质检项节点保留图标 ===
+    setCompletionStatusIcon(newItem, status);
+
+    parent->insertChild(currentIndex + 1, newItem);
+    delete currentItem;
+    ui->treeWidget_xmlTaskData->setCurrentItem(newItem);
+}
+
+
+//删除子任务列表
+void map_check_task_manager::on_pushButton_delete_clicked()
+{
+    QTreeWidgetItem* currentItem = ui->treeWidget_xmlTaskData->currentItem();
+    if (!currentItem) {
+        QMessageBox::information(this, tr("提示"), tr("请先选中要删除的子任务列表"));
+        return;
+    }
+
+    // 确保是顶层子任务列表节点（无父节点）
+    if (currentItem->parent() != nullptr) {
+        QMessageBox::information(this, tr("提示"), tr("请选中子任务列表（顶层节点）进行操作"));
+        return;
+    }
+
+    // 确认是否删除子任务列表及旗下所有质检项
+    if (QMessageBox::question(this, tr("确认"), tr("确定要删除选中的子任务列表及所有旗下质检项吗？")) == QMessageBox::Yes) {
+        delete currentItem;
+    }
+}
+
+// 处理图标按钮点击事件
+void map_check_task_manager::onLoadButtonClicked(const QModelIndex& index)
+{
+    loadFileOrFolderByIndex(index);
+}
+
+void map_check_task_manager::on_pushButton_close_clicked()
+{
+    reject();
+}
+
+//结果输出
+void map_check_task_manager::on_Button_SaveLogFilePath_clicked()
+{
+    QString dir = QFileDialog::getExistingDirectory(
+        this,
+        tr("选择结果输出文件夹"),
+        QDir::currentPath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (dir.isEmpty()) return;
+
+    // 保存目录路径
+    m_saveDir = dir;
+    ui->lineEdit_OutputLogPath->setText(m_saveDir);
+
+    // 如果你希望立即创建文件夹（防止不存在）
+    QDir qdir;
+    qdir.mkpath(m_saveDir);
+}
+
+void map_check_task_manager::on_pushButton_DataPrecheck_clicked()
+{
+    if (m_algorithmThread && m_algorithmThread->isRunning()) {
+        QMessageBox::warning(this, QStringLiteral("提示"), QStringLiteral("请等待当前质检任务完成后再执行数据预检查。"));
+        return;
+    }
+
+    QTableWidget* table = ui->tableWidget_GeopdfPath;
+    if (!table || table->rowCount() == 0) {
+        QMessageBox::warning(this, QStringLiteral("提示"), QStringLiteral("请先加载待检查地图。"));
+        return;
+    }
+
+    const QString outputBaseDir = QFileDialog::getExistingDirectory(
+        this, QStringLiteral("选择错误结果保存目录"), QDir::currentPath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks);
+    if (outputBaseDir.isEmpty()) return;
+
+    QString runDirName = QStringLiteral("数据预检查_%1").arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmmss"));
+    QDir outputDir(outputBaseDir);
+    QString runDirPath = outputDir.filePath(runDirName);
+    int runSuffix = 2;
+    while (QFileInfo::exists(runDirPath)) {
+        runDirPath = outputDir.filePath(QStringLiteral("%1_%2").arg(runDirName).arg(runSuffix++));
+    }
+    if (!QDir().mkpath(runDirPath)) {
+        QMessageBox::critical(this, QStringLiteral("错误"), QStringLiteral("无法创建错误结果目录：\n%1").arg(runDirPath));
+        return;
+    }
+
+    int mapsChecked = 0;
+    int typeErrorLayers = 0;
+    int fontErrorLayers = 0;
+    QStringList inputProblems;
+
+    auto* button = findChild<QPushButton*>(QStringLiteral("pushButton_DataPrecheck"));
+    if (button) button->setEnabled(false);
+    QApplication::setOverrideCursor(Qt::WaitCursor);
+
+    for (int row = 0; row < table->rowCount(); ++row) {
+        AlgorithmFilePaths filePaths = getFilePathsByRow(row);
+        const QString mapName = QFileInfo(filePaths.pdfPath).completeBaseName().trimmed().isEmpty()
+            ? QStringLiteral("地图%1").arg(row + 1)
+            : QFileInfo(filePaths.pdfPath).completeBaseName();
+        const QStringList mapDirParts { QStringLiteral("%1_%2").arg(row + 1).arg(safeOutputName(mapName)) };
+        const QString mapOutputDir = QDir(runDirPath).filePath(mapDirParts.first());
+
+        if (filePaths.csvPath.trimmed().isEmpty()) {
+            inputProblems << QStringLiteral("%1：未配置图面配置 CSV").arg(mapName);
+            continue;
+        }
+        const QMap<QString, CsvLayerInfo> layerMap = parseCsvToLayerMap(filePaths.csvPath);
+        if (layerMap.isEmpty()) {
+            inputProblems << QStringLiteral("%1：CSV 不存在、无法读取或表头格式不正确").arg(mapName);
+            continue;
+        }
+
+        ++mapsChecked;
+        QSet<QString> processedAnnotationPaths;
+        for (auto it = layerMap.constBegin(); it != layerMap.constEnd(); ++it) {
+            const QStringList annotNames = it.value().actualAnnotLayerNames;
+            for (const QString& rawAnnotName : annotNames) {
+                const QString annotName = rawAnnotName.trimmed();
+                if (annotName.isEmpty()) continue;
+
+                QStringList candidates;
+                const QStringList suffixes { QString(), QStringLiteral("_Point"), QStringLiteral("_LineString"), QStringLiteral("_Polygon") };
+                for (const QString& suffix : suffixes) {
+                    const QString path = QDir(filePaths.shpPath).filePath(annotName + suffix + QStringLiteral(".shp"));
+                    if (QFileInfo::exists(path) && !candidates.contains(path, Qt::CaseInsensitive)) candidates << path;
+                }
+                if (candidates.isEmpty()) {
+                    inputProblems << QStringLiteral("%1 / %2：找不到实际注记层文件").arg(mapName, annotName);
+                    continue;
+                }
+
+                for (const QString& sourcePath : candidates) {
+                    const QString normalizedSourcePath = QDir::cleanPath(sourcePath).toCaseFolded();
+                    if (processedAnnotationPaths.contains(normalizedSourcePath)) continue;
+                    processedAnnotationPaths.insert(normalizedSourcePath);
+                    const QString sourceBase = QFileInfo(sourcePath).completeBaseName();
+                    const QString errorPath = QDir(mapOutputDir).filePath(
+                        QStringLiteral("%1_注记预检查错误.shp").arg(safeOutputName(sourceBase)));
+                    int fileFeatures = 0;
+                    int fileErrors = 0;
+                    int fileTypeErrors = 0;
+                    int fileFontErrors = 0;
+                    QString errorMessage;
+                    QStringList layerWarnings;
+                    if (!writeAnnotationPrecheckErrors(sourcePath, errorPath, fileFeatures, fileErrors,
+                                                       fileTypeErrors, fileFontErrors, errorMessage, layerWarnings)) {
+                        inputProblems << QStringLiteral("%1 / %2：%3").arg(mapName, sourceBase, errorMessage);
+                    }
+                    if (fileTypeErrors > 0) ++typeErrorLayers;
+                    if (fileFontErrors > 0) ++fontErrorLayers;
+                    for (const QString& warning : layerWarnings) {
+                        inputProblems << QStringLiteral("%1 / %2：%3").arg(mapName, sourceBase, warning);
+                    }
+                }
+            }
+        }
+    }
+
+    QApplication::restoreOverrideCursor();
+    if (button) button->setEnabled(true);
+
+    QString summary = QStringLiteral("数据预检查完成。\n地图：%1 幅\n注记层混入符号：%2 个图层\n注记层混入注记：%3 个图层")
+        .arg(mapsChecked).arg(typeErrorLayers).arg(fontErrorLayers);
+    if (!inputProblems.isEmpty()) {
+        const int shownCount = std::min(inputProblems.size(), 12);
+        summary += QStringLiteral("\n\n检查提示（%1 项）:\n%2")
+            .arg(inputProblems.size()).arg(inputProblems.mid(0, shownCount).join(QLatin1Char('\n')));
+        if (inputProblems.size() > shownCount) summary += QStringLiteral("\n……");
+    }
+    QMessageBox::information(this, QStringLiteral("数据预检查"), summary);
+}
+
+// 开始/暂停 单一按钮
+void map_check_task_manager::on_pushButton_StartPause_clicked()
+{
+    QTableWidget* table = ui->tableWidget_GeopdfPath;
+    int rowCount = table->rowCount();
+
+    // 若未在运行，则视为“开始”动作
+    if (!m_algorithmThread || !m_algorithmThread->isRunning()) {
+        if (rowCount == 0) {
+            QMessageBox::warning(this, tr("警告"), tr("请先添加地图文件路径！"));
+            return;
+        }
+
+        m_checkResults.clear();
+        m_globalStartTime = QDateTime::currentDateTime();
+
+        // 在主线程构建 UI 快照，供工作线程使用
+        m_layerTasksSnapshot = buildTaskSnapshot();
+        m_mapRowsSnapshot = buildRowSnapshot();
+        m_outputDirSnapshot = ui->lineEdit_OutputLogPath->text().trimmed();
+        savePhaseOneConfigSnapshot();
+
+        m_algorithmThread = new AlgorithmThread(this);
+        connect(m_algorithmThread, &AlgorithmThread::progressChanged, this, [this](int value) {
+            if (ui->progressBar) ui->progressBar->setValue(value);
+        });
+        connect(m_algorithmThread, &AlgorithmThread::finished, this, [this]() {
+            appendLog("所有地图质检完成");
+            if (ui->progressBar) ui->progressBar->setValue(100);
+            if (ui->pushButton_StartPause) ui->pushButton_StartPause->setText(tr("开始"));
+            if (m_algorithmThread) {
+                m_algorithmThread->wait();
+                delete m_algorithmThread;
+                m_algorithmThread = nullptr;
+            }
+            m_isPaused = false;
+            QMessageBox::information(this, tr("完成"), tr("所有地图质检完成！"));
+        });
+
+        ui->pushButton_StartPause->setText(tr("暂停"));
+        ui->progressBar->setValue(0);
+        appendLog("开始质检...");
+        m_isPaused = false;
+        m_algorithmThread->start();
+        return;
+    }
+
+    // 正在运行：切换为“暂停/继续”
+    if (m_algorithmThread->isRunning() && !m_isPaused) {
+        m_algorithmThread->requestPause();
+        m_isPaused = true;
+        ui->pushButton_StartPause->setText(tr("开始"));
+        appendLog("已暂停");
+    } else if (m_algorithmThread->isRunning() && m_isPaused) {
+        m_algorithmThread->requestResume();
+        m_isPaused = false;
+        ui->pushButton_StartPause->setText(tr("暂停"));
+        appendLog("▶ 继续质检...");
+    }
+}
+
+// 不再使用独立暂停按钮
+
+//在日志框显示当前地图名
+void map_check_task_manager::appendLog(const QString& msg)
+{
+    if (QThread::currentThread() != qApp->thread()) {
+        QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection, Q_ARG(QString, msg));
+        return;
+    }
+    if (ui->label_log) {
+        ui->label_log->setText(msg);
+    }
+}
+
+void map_check_task_manager::updateProgress(int value)
+{
+    ui->progressBar->setValue(value);
+}
+
+
+// 通用的文件/文件夹加载函数
+void map_check_task_manager::loadFileOrFolderByIndex(const QModelIndex& index)
+{
+    int row = index.row();
+    int col = index.column();
+
+    QString path;
+    bool isFile = false;
+    QString dialogTitle = "";
+    QString filter = "";
+
+    // 根据列的不同，选择加载PDF文件或文件夹
+    if (col == 0) {
+        // 地图路径列，加载PDF文件
+        dialogTitle = "选择PDF文件";
+        filter = "PDF文件 (*.pdf);;所有文件 (*)";
+        isFile = true;
+    }
+    else if (col == 1) {
+        // shp文件夹列，加载文件夹
+        dialogTitle = "选择shp文件夹";
+    }
+    else if (col == 2) {
+        // gdb_shp文件夹列，加载文件夹
+        dialogTitle = "选择gdb_shp文件夹";
+    }
+    else if (col == 3) {
+        // 标准图例文件夹列，加载预处理生成的图例目录
+        dialogTitle = QString::fromUtf8(u8"选择图例文件夹");
+    }
+    else {
+        // 无效列，直接返回
+        return;
+    }
+
+    if (isFile) {
+        // 选择文件
+        QStringList filePaths = QFileDialog::getOpenFileNames(
+            this,
+            dialogTitle,
+            QString(),
+            filter
+        );
+
+        if (filePaths.isEmpty()) {
+            return;
+        }
+
+        // 将选择的文件路径添加到表格中，与第一个函数保持一致
+        QTableWidgetItem* item = new QTableWidgetItem(filePaths[0]);
+        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+        ui->tableWidget_GeopdfPath->setItem(row, col, item);
+    }
+    else {
+        // 选择文件夹
+        path = QFileDialog::getExistingDirectory(
+            this,
+            dialogTitle,
+            QString()
+        );
+
+        if (path.isEmpty()) {
+            return;
+        }
+
+        // 将选择的文件夹路径添加到表格中，与第一个函数保持一致
+        QTableWidgetItem* item = new QTableWidgetItem(path);
+        item->setFlags(item->flags() & ~Qt::ItemIsEditable);
+        ui->tableWidget_GeopdfPath->setItem(row, col, item);
+    }
+}
+
+// 设置单元格内容
+void map_check_task_manager::setCellContent(int row, int col, const QString& content)
+{
+    // 移除现有部件
+    if (QWidget* oldWidget = ui->tableWidget_GeopdfPath->cellWidget(row, col)) {
+        delete oldWidget;
+    }
+
+    // 提取显示名称（如果是路径则只显示文件名/文件夹名）
+    QString displayText = content;
+    if (!content.isEmpty()) {
+        QFileInfo fileInfo(content);
+        if (fileInfo.isFile()) {
+            // 如果是文件，显示不含路径和后缀的文件名
+            displayText = fileInfo.baseName();
+        } else if (fileInfo.isDir()) {
+            // 如果是文件夹，显示不含路径的文件夹名
+            displayText = fileInfo.fileName();
+        }
+        // 如果既不是文件也不是文件夹（比如空字符串），保持原样
+    }
+
+    //创建新的带按钮的部件（显示文件名/文件夹名）
+    QWidget* newWidget = createCellWidget(row, col, displayText);
+    ui->tableWidget_GeopdfPath->setCellWidget(row, col, newWidget);
+
+    // 同时创建表格项，存储完整路径到UserRole
+    QTableWidgetItem* item = ui->tableWidget_GeopdfPath->item(row, col);
+    if (!item) {
+        item = new QTableWidgetItem();
+        item->setData(Qt::UserRole, content); // 存储完整路径
+        item->setFlags(item->flags() & ~Qt::ItemIsEditable); // 禁止编辑
+        ui->tableWidget_GeopdfPath->setItem(row, col, item);
+    }
+    else {
+        item->setData(Qt::UserRole, content); // 更新已有项的完整路径
+    }
+    // 添加列宽自适应
+    ui->tableWidget_GeopdfPath->resizeColumnsToContents();
+}
+
+void map_check_task_manager::setCompletionStatusIcon(QTreeWidgetItem* item, CompletionStatus status)
+{
+    QIcon icon;
+    switch (status) {
+    case CompletionStatus::NotChecked:
+        icon = QIcon(":/icons/cross.png");   // 未质检 → 红叉
+        break;
+    case CompletionStatus::HasErrors:
+        icon = QIcon(":/icons/warn.png");    // 有错误 → 黄叹号
+        break;
+    case CompletionStatus::Passed:
+        icon = QIcon(":/icons/check.png");   // 无错误 → 绿对勾
+        break;
+    }
+    item->setIcon(3, icon); // 第3列显示图标
+}
+
+QString map_check_task_manager::getCheckItemStatus(const QTreeWidgetItem* item)
+{
+    QIcon icon = item->icon(3);
+    QString iconPath = icon.availableSizes().isEmpty() ? "" : icon.name();
+
+    if (iconPath.contains("红叉", Qt::CaseInsensitive)) {
+        return "未质检"; // 与判断条件一致
+    }
+    else if (iconPath.contains("叹号", Qt::CaseInsensitive)) {
+        return "质检失败"; // 与判断条件一致
+    }
+    else if (iconPath.contains("勾选", Qt::CaseInsensitive)) {
+        return "质检成功"; // 与判断条件一致
+    }
+    return "未质检"; // 默认返回未质检
+}
+
+QJsonObject map_check_task_manager::generateJsonData()
+{
+    QJsonObject root;
+
+    // 用户信息与时间
+    QString userName = ui->lineEdit->text().trimmed();
+    root["user"] = userName.isEmpty() ? "operator" : userName;
+
+    QJsonObject timing;
+    timing["start_time"] = m_globalStartTime.toString("yyyy-MM-ddTHH:mm:ss.zzzZ");
+    timing["end_time"] = m_globalEndTime.toString("yyyy-MM-ddTHH:mm:ss.zzzZ");
+    root["timing"] = timing;
+
+    // 仅生成当前地图对应的单个 Geopdf 节点（每幅图一个文件）
+    QTableWidget* table = ui->tableWidget_GeopdfPath;
+    int rowCount = table->rowCount();
+    int targetRow = (m_currentTaskRow >= 0 && m_currentTaskRow < rowCount) ? m_currentTaskRow : 0;
+
+    const QString geopdfKey = QStringLiteral("Geopdf");
+    QJsonObject geopdfNode;
+
+    // 地图名
+    QString mapName;
+    QTableWidgetItem* nameItem = table->item(targetRow, 0);
+    if (nameItem) {
+        QString fullPath = nameItem->data(Qt::UserRole).toString();
+        if (!fullPath.isEmpty()) {
+            QFileInfo fileInfo(fullPath);
+            mapName = fileInfo.baseName();
+        }
+    }
+    if (mapName.isEmpty()) {
+        mapName = QString("未命名地图%1").arg(targetRow + 1);
+    }
+    geopdfNode["name"] = mapName;
+
+    // info统计（初始，根据当前已有结果）
+    int map_completed_num = 0;
+    int map_err_num = 0;           // 依据 err_exist 统计
+    int map_uncompleted_num = 0;
+
+    // 所有质检任务（task节点）
+    QJsonObject mapTasks;
+    int tasksAddedCount = 0;
+
+    // ============ 第一层：子任务列表（图层） ============
+    for (int taskIdx = 0; taskIdx < ui->treeWidget_xmlTaskData->topLevelItemCount(); ++taskIdx) {
+        QTreeWidgetItem* layerNode = ui->treeWidget_xmlTaskData->topLevelItem(taskIdx);
+        if (!layerNode) continue;
+        QString layerName = layerNode->text(0);
+
+        QJsonObject taskNode;
+        taskNode["layer_name"] = layerName;
+
+        int checkItemCount = 0;
+
+        // ============ 第二层：比例尺节点 ============
+        for (int scaleIdx = 0; scaleIdx < layerNode->childCount(); ++scaleIdx) {
+            QTreeWidgetItem* scaleNode = layerNode->child(scaleIdx);
+            if (!scaleNode) continue;
+
+            // ============ 第三层：质检项节点 ============
+            for (int itemIdx = 0; itemIdx < scaleNode->childCount(); ++itemIdx) {
+                QTreeWidgetItem* checkItem = scaleNode->child(itemIdx);
+                if (!checkItem) continue;
+                QString checkItemName = checkItem->text(2).trimmed();
+                if (checkItemName.isEmpty()) continue;
+
+                ++checkItemCount;
+
+                const QString uniqueKey = QString("%1_%2_%3").arg(targetRow).arg(layerName).arg(checkItemName);
+                QJsonObject checkItemJson;
+                const QString severity = m_checkItemSeverity.value(
+                    checkItemSeverityKey(layerName, checkItemName), QStringLiteral("未配置"));
+
+                // === 有执行结果 ===
+                if (m_checkResults.contains(uniqueKey)) {
+                    const CheckItemResult& res = m_checkResults[uniqueKey];
+                    checkItemJson["id"] = res.id;
+                    checkItemJson["name"] = res.name.isEmpty() ? checkItemName : res.name;
+                    checkItemJson["status"] = res.status;
+                    checkItemJson["err_exist"] = res.err_exist;
+                    checkItemJson["info"] = res.info;
+                    checkItemJson["errors"] = res.errors;
+
+                    if (res.status == "质检成功" || res.status == "质检完成") map_completed_num++;
+                    else if (res.status == "质检失败") map_uncompleted_num++; // 失败计入未完成
+                    else map_uncompleted_num++;
+                    if (res.err_exist) map_err_num++;
+                }
+                // === 未执行 ===
+                else {
+                    checkItemJson["id"] = "";
+                    checkItemJson["name"] = checkItemName;
+                    checkItemJson["status"] = "未质检";
+                    checkItemJson["err_exist"] = false;
+                    checkItemJson["info"] = QJsonObject();
+                    checkItemJson["errors"] = QJsonObject();
+                    map_uncompleted_num++;
+                }
+
+                // 严重程度由规则 XML 的 check_item/severity 提供，
+                // 与具体质检算法无关，因此统一在总 JSON 组装时写入。
+                checkItemJson["severity"] = severity;
+
+                taskNode[QString("check_item%1").arg(checkItemCount)] = checkItemJson;
+            }
+        }
+
+        // 增加 task 节点
+        mapTasks[QString("task%1").arg(taskIdx + 1)] = taskNode;
+        tasksAddedCount++;
+    }
+
+    // info统计（tasks_num 按 task 数量统计；err_num 按 err_exist）
+    QJsonObject mapInfo;
+    mapInfo["tasks_num"] = tasksAddedCount;
+    mapInfo["completed_num"] = map_completed_num;
+    mapInfo["err_num"] = map_err_num;
+    mapInfo["uncompleted_num"] = map_uncompleted_num;
+    geopdfNode["info"] = mapInfo;
+
+    // 任务集合
+    geopdfNode["tasks"] = mapTasks;
+
+    root[geopdfKey] = geopdfNode;
+
+    if (!m_waterClassificationSummary.isEmpty())
+        root.insert(QStringLiteral("water_result_classification"), m_waterClassificationSummary);
+
+    return root;
+}
+
+bool map_check_task_manager::writeJsonToFile(const QJsonObject& jsonData, const QString& filePath)
+{
+    try {
+        QFile file(filePath);
+        if (!file.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                Q_ARG(QString, tr("无法打开文件：%1").arg(filePath)));
+            return false;
+        }
+
+        QJsonDocument doc(jsonData);
+        file.write(doc.toJson(QJsonDocument::Indented));
+        file.close();
+        // 保持label_log用于显示当前地图进度，成功保存JSON不再覆盖状态标签
+        return true;
+    }
+    catch (const std::exception& e) {
+        QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+            Q_ARG(QString, tr("JSON生成错误：%1").arg(QString::fromStdString(e.what()))));
+        return false;
+    }
+}
+
+bool map_check_task_manager::updateJsonFileWithResult(int row, const QString& layerName, const QString& checkItemName, const CheckItemResult& result)
+{
+    if (m_currentJsonFilePath.isEmpty()) {
+        return false;
+    }
+
+    const QString severity = m_checkItemSeverity.value(
+        checkItemSeverityKey(layerName, checkItemName), QStringLiteral("未配置"));
+
+    try {
+        QJsonObject root;
+
+        // 检查文件是否存在
+        if (!QFile::exists(m_currentJsonFilePath)) {
+            QJsonObject tmp;
+            QMetaObject::invokeMethod(this, [&]() { tmp = generateJsonData(); }, Qt::BlockingQueuedConnection);
+            root = tmp; // 文件不存在，创建新的
+            return writeJsonToFile(root, m_currentJsonFilePath);
+        }
+
+        // 读取现有JSON文件
+        QFile file(m_currentJsonFilePath);
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            return false;
+        }
+        QByteArray jsonData = file.readAll();
+        file.close();
+
+        // 解析JSON
+        QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+        if (doc.isNull() || !doc.isObject()) {
+            // 解析失败，用新数据覆盖（在主线程生成）
+            QJsonObject tmp;
+            QMetaObject::invokeMethod(this, [&]() { tmp = generateJsonData(); }, Qt::BlockingQueuedConnection);
+            root = tmp;
+            return writeJsonToFile(root, m_currentJsonFilePath);
+        }
+        root = doc.object();
+
+        // 泛化查找 Geopdf 节点键（优先无索引，其次按行号，最后按第一个匹配）
+        QString geopdfKeyQStr;
+        if (root.contains(QStringLiteral("Geopdf"))) {
+            geopdfKeyQStr = QStringLiteral("Geopdf");
+        } else if (root.contains(QString("Geopdf%1").arg(row + 1))) {
+            geopdfKeyQStr = QString("Geopdf%1").arg(row + 1);
+        } else {
+            for (auto it = root.constBegin(); it != root.constEnd(); ++it) {
+                if (it.key().startsWith("Geopdf")) { geopdfKeyQStr = it.key(); break; }
+            }
+        }
+        if (geopdfKeyQStr.isEmpty() || !root.contains(geopdfKeyQStr)) {
+            return false;
+        }
+
+        // --- 注意：Qt JSON 对象是“写时复制”的，修改时需要小心 ---
+        QJsonObject geopdfNode = root[geopdfKeyQStr].toObject(); // 1. 获取 Geopdf 节点副本
+        bool found = false;
+
+        if (geopdfNode.contains("tasks") && geopdfNode["tasks"].isObject()) {
+            QJsonObject mapTasks = geopdfNode["tasks"].toObject(); // 2. 获取 Tasks 副本
+
+            for (auto taskIt = mapTasks.begin(); taskIt != mapTasks.end(); ++taskIt) {
+                if (taskIt.key().startsWith("task")) {
+                    QJsonObject task = taskIt.value().toObject(); // 3. 获取 Task 副本
+                    if (task.contains("layer_name") && task["layer_name"].toString() == layerName) {
+
+                        for (auto checkIt = task.begin(); checkIt != task.end(); ++checkIt) {
+                            if (checkIt.key().startsWith("check_item")) {
+                                QJsonObject itemJson = checkIt.value().toObject(); // 4. 获取 Item 副本
+                                if (itemJson.contains("name") && itemJson["name"].toString() == checkItemName) {
+
+                                    // 5. 修改 Item 副本
+                                    if (!result.id.isEmpty()) {
+                                        itemJson["id"] = result.id;
+                                    }
+                                    itemJson["status"] = result.status;
+                                    itemJson["err_exist"] = result.err_exist;
+                                    itemJson["info"] = result.info;
+                                    itemJson["errors"] = result.errors;
+                                    // 兼容任务中途续跑或既有总 JSON：每次回写结果时
+                                    // 均补齐当前质检项的严重程度。
+                                    itemJson.remove(QStringLiteral("importance"));
+                                    itemJson["severity"] = severity;
+                                    found = true;
+
+                                    // 6. 将修改后的 Item 写回 Task
+                                    task[checkIt.key()] = itemJson;
+                                    break;
+                                }
+                            }
+                        }
+                        if (found) {
+                            // 7. 将修改后的 Task 写回 mapTasks
+                            mapTasks[taskIt.key()] = task;
+                            break;
+                        }
+                    }
+                }
+            }
+            if (found) {
+                // 8. 将修改后的 mapTasks 写回 geopdfNode
+                geopdfNode["tasks"] = mapTasks;
+            }
+        }
+
+        // *** 此处开始的旧代码块已被删除 ***
+
+        // 重新计算当前地图的统计信息（仅单幅地图）
+        if (found && geopdfNode.contains("tasks")) {
+            QJsonObject mapTasks = geopdfNode["tasks"].toObject(); // 获取更新后的 tasks
+            int map_tasks_num = 0, map_completed_num = 0, map_err_num = 0, map_uncompleted_num = 0;
+
+            for (auto taskIt = mapTasks.constBegin(); taskIt != mapTasks.constEnd(); ++taskIt) {
+                if (taskIt.key().startsWith("task")) {
+                    QJsonObject task = taskIt.value().toObject();
+                    map_tasks_num++; // tasks_num 按 task 数量统计
+                    for (auto checkIt = task.constBegin(); checkIt != task.constEnd(); ++checkIt) {
+                        if (checkIt.key().startsWith("check_item")) {
+                            QJsonObject itemJson = checkIt.value().toObject();
+                            QString status = itemJson["status"].toString();
+                            if (status == "质检成功" || status == "质检完成") map_completed_num++;
+                            else map_uncompleted_num++; // 非成功均计入未完成
+                            if (itemJson.value("err_exist").toBool()) map_err_num++;
+                        }
+                    }
+                }
+            }
+
+            QJsonObject mapInfo = geopdfNode["info"].toObject(); // 9. 获取 Info 副本
+            mapInfo["tasks_num"] = map_tasks_num;
+            mapInfo["completed_num"] = map_completed_num;
+            mapInfo["err_num"] = map_err_num;
+            mapInfo["uncompleted_num"] = map_uncompleted_num;
+            geopdfNode["info"] = mapInfo; // 10. 将修改后的 Info 写回 geopdfNode
+        }
+
+        // 更新全局时间
+        if (root.contains("timing") && root["timing"].isObject()) {
+            QJsonObject timing = root["timing"].toObject(); // 获取副本
+            timing["end_time"] = QDateTime::currentDateTime().toString("yyyy-MM-ddTHH:mm:ss.zzzZ");
+            root["timing"] = timing; // 写回
+        }
+
+        // 11. 将修改后的 geopdfNode 写回 root
+        root[geopdfKeyQStr] = geopdfNode;
+
+        // 写入文件
+        if (file.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+            QJsonDocument updatedDoc(root);
+            file.write(updatedDoc.toJson(QJsonDocument::Indented));
+            file.close();
+            return true;
+        }
+    }
+    catch (const std::exception& e) {
+        QJsonObject newData;
+        QMetaObject::invokeMethod(this, [&]() { newData = generateJsonData(); }, Qt::BlockingQueuedConnection);
+        return writeJsonToFile(newData, m_currentJsonFilePath);
+    }
+
+    return false;
+}
+
+
+void map_check_task_manager::refreshAnnotationContentCheckResults(int row)
+{
+    const QString keyPrefix = QString::number(row) + "_";
+    for (auto it = m_checkResults.begin(); it != m_checkResults.end(); ++it)
+    {
+        if (!it.key().startsWith(keyPrefix) || it.value().id != "213")
+            continue;
+
+        CheckItemResult refreshed = it.value();
+        const QString jsonPath = refreshed.info.value("result_json").toString();
+        QFile jsonFile(jsonPath);
+        if (jsonPath.isEmpty() || !jsonFile.open(QIODevice::ReadOnly | QIODevice::Text))
+            continue;
+
+        const QJsonDocument document = QJsonDocument::fromJson(jsonFile.readAll());
+        jsonFile.close();
+        if (!document.isObject())
+            continue;
+
+        const QJsonObject report = document.object();
+        const QJsonArray groups = report.value("results").toArray();
+        const QJsonObject summary = report.value("summary").toObject();
+
+        int totalItems = summary.value("total_items").toInt(-1);
+        if (totalItems < 0)
+        {
+            totalItems = 0;
+            for (const QJsonValue &groupValue : groups)
+                totalItems += groupValue.toObject().value("items").toArray().size();
+        }
+
+        refreshed.status = QStringLiteral("质检成功");
+        refreshed.err_exist = totalItems > 0;
+        // 跨类型校验会改写 213 单项报告；同步其最新说明，
+        // 防止总 JSON 退回为首次执行时的固定文案。
+        const QJsonValue reportInfo = report.value("info");
+        const QString reportDescription = (reportInfo.isObject()
+            ? reportInfo.toObject().value("description")
+            : reportInfo).toString().trimmed();
+        if (!reportDescription.isEmpty())
+            refreshed.info["description"] = reportDescription;
+
+        refreshed.info["total_groups"] = summary.value("total_groups").toInt(groups.size());
+        refreshed.info["total_items"] = totalItems;
+        refreshed.errors = QJsonObject();
+        for (int i = 0; i < groups.size(); ++i)
+            refreshed.errors[QStringLiteral("group_%1").arg(i + 1)] = groups.at(i);
+
+        it.value() = refreshed;
+    }
+}
+
+void map_check_task_manager::initAlgorithmMap()
+{
+    m_algorithmMap.insert(QStringLiteral("点要素孤立检查"), PointIsolationCheckWrapper);
+    m_algorithmMap.insert(QStringLiteral("要素冗余检查"), FeatureRedundancyCheckWrapper);
+    // 绑定质检项名称与对应的算法函数（一一对应）
+    m_algorithmMap.insert("比例尺数值检查", algorithm_ScaleValueCheck);
+    m_algorithmMap.insert("要素层缺失检查", FeatureLayerMissingCheck);
+    m_algorithmMap.insert("要素缺失检查", FeatureMissingCheck);
+    m_algorithmMap.insert("要素错绘检查", FeatureMisplacementCheck);
+    m_algorithmMap.insert("绝对偏移检查", AbsoluteOffsetCheck);
+    m_algorithmMap.insert("几何走向异常检查", checkWaterSystemDirection);
+    m_algorithmMap.insert("最小弯曲阈值控制", MinBendThresholdCheck);
+    m_algorithmMap.insert("特征点限差控制", FeaturePointToleranceChecker);
+    m_algorithmMap.insert("光滑度阈值控制", SmoothnessChecker);
+    m_algorithmMap.insert("直角化角度阈值控制", checkRightAngleThreshold);
+    m_algorithmMap.insert("削尖角度阈值控制", AngleCheckInterface);
+    m_algorithmMap.insert("面要素重叠间隙检查", checkPolygonOverlapGap);
+    m_algorithmMap.insert("线要素拓扑检查", checkLineTopology);
+    m_algorithmMap.insert("关系检查", ContainmentCheckInterface);
+    // 501 由图幅接边 / 跨比例尺专用入口执行；注册在此用于统一算法定义。
+    m_algorithmMap.insert("图幅接边与系列化表达", SeriesMapTemplateCheckWrapper);
+    m_algorithmMap.insert("境界线越级检查", BoundaryMissingLevelCheckWrapper);
+    m_algorithmMap.insert("行政区划面套合检查", AdministrativeDivisionFitCheckWrapper);
+    m_algorithmMap.insert("境界线缺失和跳绘检查", BoundaryJumpDrawCheckWrapper);
+    m_algorithmMap.insert("飞地漏绘检查", EnclaveMissingCheckWrapper);
+    // 新增算法时，在此处添加映射即可
+    // ========== 注记检查算法 ==========
+    m_algorithmMap.insert("字体", AnnotationFontCheckWrapper);
+    m_algorithmMap.insert("字大", AnnotationFontSizeCheckWrapper);
+    m_algorithmMap.insert("字体颜色", AnnotationColorCheckWrapper);
+    m_algorithmMap.insert("字体斜体", AnnotationItalicCheckWrapper);
+    m_algorithmMap.insert("重叠检查", AnnotationOverlapCheckWrapper);
+    m_algorithmMap.insert("注记匹配", AnnotationMatchFeaturesWrapper);
+    m_algorithmMap.insert("线要素注记间距", GroupSpacingCheckWrapper);
+    m_algorithmMap.insert("面要素等间距标注", EqualSpacingCheckWrapper);
+    m_algorithmMap.insert("符号方向性检查", SymbolDirectionCheckWrapper);
+    m_algorithmMap.insert("符号注记匹配", SymbolAnnotationMatchCheckWrapper);
+    m_algorithmMap.insert("字距", CharSpacingCheckWrapper);
+    m_algorithmMap.insert("政区名称注记错误/缺失检查", AdminNameAnnotationCheckWrapper);
+    m_algorithmMap.insert("敏感文字合规性检查", SensitiveContentCheckWrapper);
+    m_algorithmMap.insert("注记内容合规性", AnnotationContentCheckWrapper);
+    m_algorithmMap.insert("境界线色带渲染合规性检查", BoundaryBandRenderCheckWrapper);
+    
+    // ========== 地图样式检查算法 ==========
+    m_algorithmMap.insert("图名", MapStyleCheckWrapper);
+    m_algorithmMap.insert("制图说明检查", MapAnnotationCheckWrapper);
+    m_algorithmMap.insert("行政区划面颜色检查", AdminColorCheckWrapper);
+    m_algorithmMap.insert("投影参数准确性", ProjectionParameterCheckWrapper);
+    m_algorithmMap.insert("标准图例匹配检查", LegendMatchCheckWrapper);
+    m_algorithmMap.insert("图名与行政区划匹配检查", MapNameMatchCheckWrapper);
+    m_algorithmMap.insert("必须图层检查", RequiredLayersCheckWrapper);
+    m_algorithmMap.insert("内容与图廓错位检查", ContentFrameMisalignmentCheckWrapper);
+    m_algorithmMap.insert("要素超出边界检查", FeatureOutOfBoundaryCheckWrapper);
+    m_algorithmMap.insert("行政区划设色检查", AdminColorStyleCheckWrapper);
+}
+
+AlgorithmFilePaths map_check_task_manager::getFilePathsByRow(int row)
+{
+    AlgorithmFilePaths paths;
+    QTableWidget* table = ui->tableWidget_GeopdfPath;
+
+    // 从表格项的UserRole中获取完整路径（之前存储的真实路径）
+    auto getItemPath = [&](int col) -> QString {
+        QTableWidgetItem* item = table->item(row, col);
+        return item ? item->data(Qt::UserRole).toString().trimmed() : "";
+    };
+
+    paths.pdfPath = getItemPath(0);     // 第0列：地图PDF路径
+    paths.shpPath = getItemPath(1);     // 第1列：SHP文件夹路径
+    paths.gdbShpPath = getItemPath(2);  // 第2列：GDB_SHP文件夹路径
+    paths.legendDir = getItemPath(3);   // 第3列：标准图例文件夹路径
+    paths.csvPath = getItemPath(4);     // 第4列：图面配置CSV路径
+
+    return paths;
+}
+
+void map_check_task_manager::updateCheckItemStatusIcon(QTreeWidgetItem* checkItem, const CheckItemResult& result)
+{
+    if (!checkItem) return;
+
+    // 根据结果设置图标
+    CompletionStatus status;
+    if (result.status == "质检成功" || result.status == "质检完成") {
+        status = CompletionStatus::Passed;
+    }
+    else if (result.status == "质检失败") {
+        status = CompletionStatus::HasErrors;
+    }
+    else {
+        status = CompletionStatus::NotChecked;
+    }
+    setCompletionStatusIcon(checkItem, status);
+}
+
+QMap<QString, CsvLayerInfo> map_check_task_manager::parseCsvToLayerMap(const QString& csvPath)
+{
+    QMap<QString, CsvLayerInfo> layerMap;
+    QFile csvFile(csvPath);
+
+    // 检查CSV文件存在性
+    if (!csvFile.exists()) {
+        // 工作线程内不弹框，直接返回空映射
+        return layerMap;
+    }
+
+    // 打开CSV（UTF-8编码，兼容中文）
+    if (!csvFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        // 工作线程内不弹框，直接返回空映射
+        return layerMap;
+    }
+
+    // The supplied configuration may be GB18030 despite its UTF8 filename.
+    const QByteArray csvBytes = csvFile.readAll();
+    QTextCodec::ConverterState csvState;
+    QString csvText = QTextCodec::codecForName("UTF-8")->toUnicode(
+        csvBytes.constData(), csvBytes.size(), &csvState);
+    if (csvState.invalidChars)
+        csvText = QTextCodec::codecForName("GB18030")->toUnicode(csvBytes);
+    if (csvText.startsWith(QChar(0xfeff))) csvText.remove(0, 1);
+    QTextStream in(&csvText, QIODevice::ReadOnly);
+    bool isHeader = true; // 跳过表头行
+
+    while (!in.atEnd()) {
+        QString line = in.readLine().trimmed();
+        if (line.isEmpty()) continue;
+
+        // 跳过表头行（验证表头格式是否正确）
+        if (isHeader) {
+            QStringList headerCols = line.split(",", Qt::KeepEmptyParts);
+            // 校验表头是否包含必要字段（避免CSV格式错误）
+            if (headerCols.size() < 6 ||
+                headerCols[0] != "标准图层" ||
+                headerCols[1] != "gdb图层" ||
+                headerCols[2] != "实际图层" ||
+                headerCols[3] != "实际注记图层" ||
+                headerCols[4] != "对应注记层" ||
+                headerCols[5] != "图例字段") {
+                // 工作线程内不弹框，直接返回空映射
+                csvFile.close();
+                return layerMap;
+            }
+            isHeader = false;
+            continue;
+        }
+
+        // 按逗号分割6列数据（保留空值，确保列数匹配）
+        QStringList cols = line.split(",", Qt::KeepEmptyParts);
+        while (cols.size() < 6) cols << ""; // 补全空列，避免索引越界
+
+        // 提取各列数据（按CSV顺序映射）
+        QString standardLayer = cols[0].trimmed();  // 第1列：标准图层（与子任务名称匹配）
+        QString gdbLayer = cols[1].trimmed();       // 第2列：gdb图层
+        QString actualLayer = cols[2].trimmed();    // 第3列：实际图层
+        QString actualAnnotLayer = cols[3].trimmed();// 第4列：实际注记图层
+        QString correspondingAnnotLayer = cols[4].trimmed(); // 第5列：对应注记层
+        QString legendField = cols[5].trimmed();    // 第6列：图例字段
+
+
+        if (!standardLayer.isEmpty()) {
+            CsvLayerInfo layerInfo;
+            
+            // 存储图例字段
+            layerInfo.legendField = legendField;
+            layerInfo.correspondingAnnotLayer = correspondingAnnotLayer;
+
+            // 1. 拆分gdb图层（支持单个/多个，按|分割）
+            if (!gdbLayer.isEmpty()) {
+                QStringList gdbNames = gdbLayer.split("|", Qt::SkipEmptyParts);
+                for (QString& name : gdbNames) {
+                    name = name.trimmed();
+                    if (!name.isEmpty()) {
+                        layerInfo.gdbLayerNames.append(name);
+                    }
+                }
+            }
+
+            // 2. 拆分实际图层（支持单个/多个，按|分割）
+            if (!actualLayer.isEmpty()) {
+                QStringList actualNames = actualLayer.split("|", Qt::SkipEmptyParts);
+                for (QString& name : actualNames) {
+                    name = name.trimmed();
+                    if (!name.isEmpty()) {
+                        layerInfo.actualLayerNames.append(name);
+                    }
+                }
+            }
+
+            // 3. 拆分注记图层（支持单个/多个，按|分割）
+            if (!actualAnnotLayer.isEmpty()) {
+                QStringList annotNames = actualAnnotLayer.split("|", Qt::SkipEmptyParts);
+                for (QString& name : annotNames) {
+                    name = name.trimmed();
+                    if (!name.isEmpty()) {
+                        layerInfo.actualAnnotLayerNames.append(name);
+                    }
+                }
+            }
+
+            layerMap[standardLayer] = layerInfo;
+        }
+    }
+
+    csvFile.close();
+    return layerMap;
+}
+
+//执行算法线程主体
+void map_check_task_manager::executeAlgorithms(std::atomic<bool>& stopFlag, std::atomic<bool>& pauseFlag, AlgorithmThread* thread)
+{
+    // 使用主线程预先构建的快照，避免在工作线程读取任何 UI 控件
+    const int rowCount = m_mapRowsSnapshot.size();
+    if (rowCount == 0) return;
+
+    int completedMaps = 0;
+
+    // 统计总地图数量用于进度（按地图）
+    // 先预计算需要执行的质检项总数（按图幅 + 图层 + 质检项），用于更细粒度的进度更新
+    const QString scaleCheckItemName = QStringLiteral("比例尺数值检查");
+    int totalItems = 0;
+    for (int r = 0; r < rowCount; ++r) {
+        AlgorithmFilePaths fpaths = m_mapRowsSnapshot[r].paths;
+        QMap<QString, CsvLayerInfo> layerMapPreview = parseCsvToLayerMap(fpaths.csvPath);
+        if (layerMapPreview.isEmpty()) continue;
+        for (const auto& layerTask : m_layerTasksSnapshot) {
+            QString layerName = layerTask.layerName;
+            if (!layerMapPreview.contains(layerName)) continue;
+            for (const QString& checkItemName : layerTask.checkItemNames) {
+                if (checkItemName.isEmpty() || isSeriesEdgeMatchItem(QString(), checkItemName)) continue;
+                // 只有当算法映射中存在对应算法时才统计（避免统计无法执行的项）
+                if (m_algorithmMap.contains(checkItemName)) totalItems++;
+            }
+        }
+    }
+    if (totalItems <= 0) totalItems = 1; // 防止除以0
+
+    int completedItems = 0; // 每完成一个质检项就 ++
+
+    for (int row = 0; row < rowCount; ++row) {
+        if (stopFlag.load()) return;
+        while (pauseFlag.load()) QThread::msleep(200);
+
+        m_currentTaskRow = row; // 记录当前地图所在行，供 JSON 生成使用
+        AlgorithmFilePaths filePaths = m_mapRowsSnapshot[row].paths;
+        QString mapName = m_mapRowsSnapshot[row].mapName;
+
+        // 显示当前地图及序号
+        QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+            Q_ARG(QString, QString("正在质检第%1/%2幅：%3").arg(row + 1).arg(rowCount).arg(mapName)));
+
+        // 每幅图开始时切换任务树状态。该调用与后续图标更新都在 GUI
+        // 线程排队执行，因此上一幅图的迟到更新会被行号保护丢弃。
+        QMetaObject::invokeMethod(this, "beginMapTaskStatus", Qt::QueuedConnection,
+            Q_ARG(int, row));
+
+        // 每幅图创建独立 JSON 文件路径
+        QString jsonName = QString("%1_result_%2.json")
+            .arg(mapName)
+            .arg(QDateTime::currentDateTime().toString("yyyyMMddHHmmss"));
+        QString outputDir = m_outputDirSnapshot;
+        if (outputDir.isEmpty()) {
+            outputDir = QDir::currentPath() + "/output_results";
+            QDir dir;
+            dir.mkpath(outputDir);
+            QMetaObject::invokeMethod(this, [this, outputDir]() {
+                ui->lineEdit_OutputLogPath->setText(outputDir);
+                }, Qt::QueuedConnection);
+        }
+        
+        // 为每幅地图创建独立的输出子目录
+        QString mapOutputDir = QDir(outputDir).filePath(mapName);
+        QDir dir;
+        dir.mkpath(mapOutputDir);
+        m_saveDir = mapOutputDir;
+        m_currentJsonFilePath = QDir(mapOutputDir).filePath(jsonName);
+        const QString errorResultDir = QDir(mapOutputDir).filePath(QStringLiteral("质检错误结果"));
+        // 记录本图本次运行生成的最终错误图层；所有检查结束后再统一移动，
+        // 这样 213 等交叉验证在运行期间始终能从根目录读取前置 shp。
+        QHash<QString, QString> generatedErrorLayerSeverities;
+        RightAngleSharedTasks::Cache sharedRightAngleChecks;
+        QVector<WaterTaskRun> waterTaskRuns;
+        QHash<QString, int> sharedWaterTaskOwners;
+        m_waterClassificationSummary = QJsonObject();
+        std::unique_ptr<QTemporaryDir> waterRawOutput;
+
+        // ---------- 1. 执行比例尺数值检查（仅该项） ----------
+        const QString scaleCheckItemName = QStringLiteral("比例尺数值检查");
+        bool scaleCheckCompleted = false;
+
+        QMap<QString, CsvLayerInfo> layerMap = parseCsvToLayerMap(filePaths.csvPath);
+        if (layerMap.isEmpty()) {
+            // 如果 CSV 解析失败，跳过此地图，仍显示序号与地图名
+            QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                Q_ARG(QString, QString("跳过（CSV解析失败）：第%1/%2幅：%3").arg(row + 1).arg(rowCount).arg(mapName)));
+            continue;
+        }
+
+        for (const auto& layerTask : m_layerTasksSnapshot) {
+            if (stopFlag.load()) return;
+            while (pauseFlag.load()) QThread::msleep(200);
+            QString layerName = layerTask.layerName;
+            if (!layerMap.contains(layerName)) continue;
+            CsvLayerInfo matchedLayers = layerMap[layerName];
+            buildShpPaths(filePaths, matchedLayers);
+            
+            // 【重要】设置标准图层名称，供算法使用（用于文件命名和XML匹配）
+            filePaths.standardLayer = layerName;
+            
+            // 只传递与当前图层名称匹配的 XML 文件
+            QString matchedXml = MatchXmlByLayerName(m_xmlPaths, layerName);
+            filePaths.xmlPaths = matchedXml.isEmpty() ? m_xmlPaths : QStringList() << matchedXml;
+
+            for (const QString& checkItemName : layerTask.checkItemNames) {
+                if (stopFlag.load()) return;
+                while (pauseFlag.load()) QThread::msleep(200);
+
+                if (checkItemName.isEmpty() || isSeriesEdgeMatchItem(QString(), checkItemName)) continue;
+                const QString uniqueKey = QString("%1_%2_%3").arg(row).arg(layerName).arg(checkItemName);
+                if (checkItemName == scaleCheckItemName && m_algorithmMap.contains(checkItemName)) {
+                    CheckItemResult result;
+                    result.name = checkItemName;
+                    try {
+                        // 在label_log显示当前正在进行的质检项（比例尺检查）
+                        QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                            Q_ARG(QString, QString("正在质检第%1/%2幅：%3 | 正在检查质检项：%4（图层：%5）")
+                                .arg(row + 1).arg(rowCount).arg(mapName)
+                                .arg(checkItemName).arg(layerName)));
+                        m_algorithmMap[checkItemName](checkItemName, filePaths, 0, "", result);
+                        m_checkResults.insert(uniqueKey, result);
+                        // 写入 JSON（创建或更新）
+                        QJsonObject jsonTmp;
+                        QMetaObject::invokeMethod(this, [&]() { jsonTmp = generateJsonData(); }, Qt::BlockingQueuedConnection);
+                        writeJsonToFile(jsonTmp, m_currentJsonFilePath);
+                        updateJsonFileWithResult(row, layerName, checkItemName, result);
+                        // 更新图标基于本次算法结果
+                        QMetaObject::invokeMethod(this, [this, row, layerName, checkItemName, result]() {
+                            updateCheckItemStatusIconByName(row, layerName, checkItemName, result);
+                        }, Qt::QueuedConnection);
+                        scaleCheckCompleted = true;
+                        // 完成一个质检项 -> 更新按项计的进度
+                        completedItems++;
+                        {
+                            int prog = static_cast<int>(100.0 * completedItems / totalItems);
+                            emit thread->progressChanged(prog);
+                        }
+                    } catch (const std::exception& e) {
+                        result.status = "质检失败";
+                        result.err_exist = true;
+                        QJsonObject errObj;
+                        errObj["description"] = QString("比例尺检查异常：%1").arg(e.what());
+                        result.errors["error1"] = errObj;
+                        updateJsonFileWithResult(row, layerName, checkItemName, result);
+                        // 异常时也要更新图标
+                        QMetaObject::invokeMethod(this, [this, row, layerName, checkItemName, result]() {
+                            updateCheckItemStatusIconByName(row, layerName, checkItemName, result);
+                        }, Qt::QueuedConnection);
+                        // 即使异常也当作完成一个质检项，更新进度
+                        completedItems++;
+                        {
+                            int prog = static_cast<int>(100.0 * completedItems / totalItems);
+                            emit thread->progressChanged(prog);
+                        }
+                    }
+                }
+            }
+        }
+
+        // ---------- 2. 提取比例尺并刷新任务树 ----------
+        if (scaleCheckCompleted) {
+            int scale = getScaleFromJson();
+            if (scale > 0) {
+                // 阻塞调用，等待主线程刷新完成后我们再重建快照
+                QMetaObject::invokeMethod(this, "refreshTaskTreeByScale", Qt::BlockingQueuedConnection,
+                    Q_ARG(int, scale));
+                // 刷新后重建任务快照
+                QVector<LayerTaskSnapshot> newSnap;
+                QMetaObject::invokeMethod(this, [&]() { newSnap = buildTaskSnapshot(); }, Qt::BlockingQueuedConnection);
+                m_layerTasksSnapshot = newSnap;
+            }
+            else {
+                // 无比例尺则保持原任务树
+            }
+        }
+
+        // 刷新 JSON 模板
+        QJsonObject refreshedJson;
+        QMetaObject::invokeMethod(this, [&]() { refreshedJson = generateJsonData(); }, Qt::BlockingQueuedConnection);
+        writeJsonToFile(refreshedJson, m_currentJsonFilePath);
+
+        // ---------- 3. 执行除了比例尺检查以外的所有算法（仅未质检项） ----------
+        for (const auto& layerTask2 : m_layerTasksSnapshot) {
+            if (stopFlag.load()) return;
+            while (pauseFlag.load()) QThread::msleep(200);
+            QString layerName = layerTask2.layerName;
+            
+            // 【修复】如果layerName为空，记录警告并跳过
+            if (layerName.isEmpty()) {
+                QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                    Q_ARG(QString, QString("警告：发现空图层名称，已跳过")));
+                continue;
+            }
+            
+            // 【修复】如果CSV中没有匹配的图层，记录警告并跳过
+            if (!layerMap.contains(layerName)) {
+                QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                    Q_ARG(QString, QString("警告：CSV配置中未找到图层 '%1'，已跳过相关质检项").arg(layerName)));
+                continue;
+            }
+            
+            CsvLayerInfo matchedLayers = layerMap[layerName];
+            buildShpPaths(filePaths, matchedLayers);
+            
+            // 【重要】设置标准图层名称，供算法使用（用于文件命名和XML匹配）
+            filePaths.standardLayer = layerName;
+            
+            // 【调试】输出当前处理的图层信息
+            qDebug() << "[质检任务] 处理图层:" << layerName 
+                     << "| 实际图层路径数:" << filePaths.actualShpList.size()
+                     << "| 注记路径数:" << filePaths.annotShpList.size()
+                     << "| 质检项数:" << layerTask2.checkItemNames.size();
+            
+            // 只传递与当前图层名称匹配的 XML 文件
+            QString matchedXml = MatchXmlByLayerName(m_xmlPaths, layerName);
+            filePaths.xmlPaths = matchedXml.isEmpty() ? m_xmlPaths : QStringList() << matchedXml;
+            
+            // 【调试】输出XML匹配结果
+            if (!matchedXml.isEmpty()) {
+                qDebug() << "[质检任务]   匹配到XML:" << QFileInfo(matchedXml).fileName();
+            } else {
+                qDebug() << "[质检任务]   警告：未匹配到专属XML，使用全部" << m_xmlPaths.size() << "个XML";
+            }
+
+            for (const QString& checkItemName : layerTask2.checkItemNames) {
+                if (stopFlag.load()) return;
+                while (pauseFlag.load()) QThread::msleep(200);
+                if (checkItemName.isEmpty() || checkItemName == scaleCheckItemName
+                    || isSeriesEdgeMatchItem(QString(), checkItemName)) continue;
+
+                const QString uniqueKey = QString("%1_%2_%3").arg(row).arg(layerName).arg(checkItemName);
+                if (!m_algorithmMap.contains(checkItemName)) {
+                    continue;
+                }
+
+                CheckItemResult result;
+                result.name = checkItemName;
+                try {
+                    // 在label_log显示当前正在进行的质检项（常规检查）
+                    QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                        Q_ARG(QString, QString("正在质检第%1/%2幅：%3 | 正在检查质检项：%4（图层：%5）")
+                            .arg(row + 1).arg(rowCount).arg(mapName)
+                            .arg(checkItemName).arg(layerName)));
+                    int scaleVal = getScaleFromJson();
+                    const AlgorithmFunc algorithm = m_algorithmMap.value(checkItemName);
+                    const QString algorithmOutputDir = m_saveDir;
+                    const bool isWaterResultTask =
+                        (checkItemName == QStringLiteral("线要素拓扑检查")
+                         || checkItemName == QStringLiteral("几何走向异常检查"))
+                        && isWaterStandardTask(layerName, filePaths);
+                    const QString waterCheckId = checkItemName == QStringLiteral("几何走向异常检查")
+                        ? QStringLiteral("105") : QStringLiteral("112");
+                    const QString waterGroupKey = isWaterResultTask
+                        ? waterTaskGroupKey(waterCheckId, filePaths) : QString();
+                    const QString selectedXmlPath = MatchXmlByLayerName(filePaths.xmlPaths, layerName);
+                    const QString sharedWaterKey = isWaterResultTask
+                        ? LineTopologySharedTasks::waterTaskKey(checkItemName, filePaths, selectedXmlPath, scaleVal)
+                        : QString();
+                    const int sharedWaterOwnerIndex = sharedWaterKey.isEmpty()
+                        ? -1 : sharedWaterTaskOwners.value(sharedWaterKey, -1);
+                    const bool reusedSharedWater = sharedWaterOwnerIndex >= 0
+                        && sharedWaterOwnerIndex < waterTaskRuns.size();
+                    const WaterTaskRun* sharedWaterOwner = reusedSharedWater
+                        ? &waterTaskRuns[sharedWaterOwnerIndex] : nullptr;
+                    QString waterTaskOutputDir;
+                    if (!waterGroupKey.isEmpty()) {
+                        if (!waterRawOutput) waterRawOutput = createWaterWorkDirectory(outputDir);
+                        if (!waterRawOutput)
+                            throw std::runtime_error("无法在质检输出目录之外创建水系暂存目录");
+                        waterTaskOutputDir = reusedSharedWater
+                            ? sharedWaterOwner->rawOutputDir
+                            : QDir(waterRawOutput->path()).filePath(
+                                waterCheckId + QLatin1Char('_') + safeWaterOutputName(layerName));
+                        if (!reusedSharedWater && !QDir().mkpath(waterTaskOutputDir))
+                            throw std::runtime_error("无法创建水系任务暂存目录");
+                    }
+                    const QString effectiveOutputDir = waterTaskOutputDir.isEmpty()
+                        ? algorithmOutputDir : waterTaskOutputDir;
+                    const QString taskErrorResultDir = QDir(effectiveOutputDir).filePath(
+                        waterTaskOutputDir.isEmpty() ? QStringLiteral("质检错误结果") : QStringLiteral("water_work"));
+                    const QHash<QString, ErrorLayerFileState> errorLayersBefore =
+                        snapshotFinalErrorLayers(taskErrorResultDir);
+                    const QString sharedRightAngleKey = RightAngleSharedTasks::taskKey(
+                        checkItemName, filePaths, selectedXmlPath, scaleVal);
+                    const bool reusedSharedRightAngle = sharedRightAngleChecks.find(sharedRightAngleKey, checkItemName, result);
+                    if (reusedSharedWater) {
+                        result = sharedWaterOwner->result;
+                        result.name = checkItemName;
+                        result.info.insert(QStringLiteral("reused_shared_water_check"), true);
+                        result.info.insert(QStringLiteral("shared_check_owner_layer"), sharedWaterOwner->layerName);
+                        QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                            Q_ARG(QString, QString("水系任务“%1”复用“%2”的完整错误记录。")
+                                .arg(layerName, sharedWaterOwner->layerName)));
+                    } else if (!reusedSharedRightAngle) {
+                        runAlgorithmWithThreadAffinity(
+                            checkItemName, algorithm, filePaths, scaleVal, effectiveOutputDir, result);
+                    } else {
+                        const bool written = RightAngleSharedTasks::writeReusedOutput(algorithmOutputDir, layerName, result);
+                        if (!written)
+                            throw std::runtime_error("failed to write shared check result reference");
+                        QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                            Q_ARG(QString, result.info.value("description").toString()));
+                    }
+                    const QHash<QString, ErrorLayerFileState> errorLayersAfter =
+                        snapshotFinalErrorLayers(taskErrorResultDir);
+                    const QStringList newErrorLayerPaths = reusedSharedWater
+                        ? sharedWaterOwner->rawErrorLayers
+                        : changedFinalErrorLayers(errorLayersBefore, errorLayersAfter);
+                    appendErrorLayerPaths(result, newErrorLayerPaths);
+                    if (!reusedSharedRightAngle) sharedRightAngleChecks.remember(sharedRightAngleKey, layerName, result);
+                    const QString severity = layerTask2.checkItemSeverities.value(
+                        checkItemName, QStringLiteral("未配置"));
+                    if (isWaterResultTask && !waterGroupKey.isEmpty()) {
+                        WaterTaskRun waterRun;
+                        waterRun.groupKey = waterGroupKey;
+                        waterRun.checkId = waterCheckId;
+                        waterRun.checkName = checkItemName;
+                        waterRun.layerName = layerName;
+                        waterRun.severity = severity;
+                        waterRun.status = result.status;
+                        waterRun.resultKey = uniqueKey;
+                        waterRun.rawOutputDir = waterTaskOutputDir;
+                        waterRun.rawLogName = reusedSharedWater
+                            ? sharedWaterOwner->rawLogName
+                            : (waterCheckId == QStringLiteral("105")
+                                ? QStringLiteral("几何走向异常_") : QStringLiteral("线要素拓扑_"))
+                                + safeWaterOutputName(layerName) + QStringLiteral(".log");
+                        waterRun.sharedKey = sharedWaterKey;
+                        waterRun.rawErrorLayers = newErrorLayerPaths;
+                        waterRun.errors = result.errors;
+                        waterRun.result = result;
+                        waterTaskRuns.append(waterRun);
+                        if (!sharedWaterKey.isEmpty()
+                            && (result.status == QStringLiteral("质检成功") || result.status == QStringLiteral("质检完成")))
+                            sharedWaterTaskOwners.insert(sharedWaterKey, waterTaskRuns.size() - 1);
+                    } else {
+                        for (const QString& path : newErrorLayerPaths)
+                            generatedErrorLayerSeverities.insert(path, severity);
+                    }
+                    m_checkResults.insert(uniqueKey, result);
+                    if (result.id == "213") {
+                        // 213 跨类型验证可能改写本图先前执行的 213 报告，统一重建汇总 JSON。
+                        refreshAnnotationContentCheckResults(row);
+                        QJsonObject jsonTmp;
+                        QMetaObject::invokeMethod(this, [&]() { jsonTmp = generateJsonData(); }, Qt::BlockingQueuedConnection);
+                        writeJsonToFile(jsonTmp, m_currentJsonFilePath);
+                    } else {
+                        updateJsonFileWithResult(row, layerName, checkItemName, result);
+                    }
+                    QMetaObject::invokeMethod(this, [this, row, layerName, checkItemName, result]() {
+                        updateCheckItemStatusIconByName(row, layerName, checkItemName, result);
+                    }, Qt::QueuedConnection);
+                    // 完成一个质检项 -> 更新按项计的进度
+                    completedItems++;
+                    {
+                        int prog = static_cast<int>(100.0 * completedItems / totalItems);
+                        emit thread->progressChanged(prog);
+                    }
+                } catch (const std::exception& e) {
+                    result.status = "质检失败";
+                    result.err_exist = true;
+                    QJsonObject errObj;
+                    errObj["description"] = QString("算法执行异常：%1").arg(e.what());
+                    result.errors["error1"] = errObj;
+                    updateJsonFileWithResult(row, layerName, checkItemName, result);
+                    // 异常时也要更新图标
+                    QMetaObject::invokeMethod(this, [this, row, layerName, checkItemName, result]() {
+                        updateCheckItemStatusIconByName(row, layerName, checkItemName, result);
+                    }, Qt::QueuedConnection);
+                    // 异常也算作完成一个项，推进进度
+                    completedItems++;
+                    {
+                        int prog = static_cast<int>(100.0 * completedItems / totalItems);
+                        emit thread->progressChanged(prog);
+                    }
+                }
+            }
+        }
+
+        if (!waterTaskRuns.isEmpty()) {
+            QStringList waterDiagnostics;
+            QJsonObject waterSummary;
+            const bool waterExportComplete = consolidateWaterTaskResults(
+                waterTaskRuns, errorResultDir,
+                QDir(mapOutputDir).filePath(QStringLiteral("质检json文件")),
+                QDir(mapOutputDir).filePath(QStringLiteral("质检日志文件")),
+                m_checkResults, generatedErrorLayerSeverities,
+                &waterSummary, &waterDiagnostics);
+            waterSummary.insert(QStringLiteral("export_complete"), waterExportComplete);
+            m_waterClassificationSummary = waterSummary;
+
+            QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                Q_ARG(QString, QString("水系错误记录已由调度层汇总并按库体类别去重分发（%1 个任务组）。")
+                    .arg(waterSummary.value(QStringLiteral("groups")).toArray().size())));
+            for (const QString& diagnostic : waterDiagnostics) {
+                QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                    Q_ARG(QString, diagnostic));
+            }
+            for (const WaterTaskRun& run : waterTaskRuns) {
+                const CheckItemResult result = m_checkResults.value(run.resultKey);
+                QMetaObject::invokeMethod(this, [this, row, layerName = run.layerName,
+                                                  checkName = run.checkName, result]() {
+                    updateCheckItemStatusIconByName(row, layerName, checkName, result);
+                }, Qt::QueuedConnection);
+            }
+            QJsonObject aggregatedJson;
+            QMetaObject::invokeMethod(this, [&]() { aggregatedJson = generateJsonData(); }, Qt::BlockingQueuedConnection);
+            writeJsonToFile(aggregatedJson, m_currentJsonFilePath);
+            waterRawOutput.reset();
+        }
+
+        // 兜底扫描：部分算法会覆盖既有文件或沿用旧时间戳，导致“运行前后差异”
+        // 无法识别到新成果。整幅图执行结束后，按输出文件名中的标准图层和质检项
+        // 反查严重程度，确保这些最终错误图层仍可归档。
+        const QHash<QString, ErrorLayerFileState> finalErrorLayers =
+            snapshotFinalErrorLayers(errorResultDir);
+        int recoveredErrorLayerCount = 0;
+        for (auto fileIt = finalErrorLayers.constBegin(); fileIt != finalErrorLayers.constEnd(); ++fileIt) {
+            const QString errorLayerPath = fileIt.key();
+            if (generatedErrorLayerSeverities.contains(errorLayerPath)) continue;
+
+            const QString fileName = QFileInfo(errorLayerPath).completeBaseName();
+            int bestMatchLength = -1;
+            QString matchedSeverity;
+            for (const LayerTaskSnapshot& layerTask : m_layerTasksSnapshot) {
+                const QString layerName = layerTask.layerName.trimmed();
+                if (layerName.isEmpty()
+                    || !fileName.contains(layerName, Qt::CaseInsensitive)) continue;
+
+                for (const QString& checkItemName : layerTask.checkItemNames) {
+                    QString nameToken = checkItemName.trimmed();
+                    nameToken.remove(QStringLiteral("检查"));
+                    nameToken.remove(QStringLiteral("控制"));
+                    nameToken.remove(QStringLiteral("合规性"));
+                    if (nameToken.size() < 2
+                        || !fileName.contains(nameToken, Qt::CaseInsensitive)
+                        || nameToken.size() <= bestMatchLength) continue;
+
+                    bestMatchLength = nameToken.size();
+                    matchedSeverity = layerTask.checkItemSeverities.value(
+                        checkItemName, QStringLiteral("未配置"));
+                }
+            }
+            if (bestMatchLength >= 0) {
+                generatedErrorLayerSeverities.insert(errorLayerPath, matchedSeverity);
+                ++recoveredErrorLayerCount;
+            }
+        }
+
+        const int archivedLayerCount = archiveErrorLayersBySeverity(
+            row, errorResultDir, generatedErrorLayerSeverities);
+        if (archivedLayerCount > 0 || recoveredErrorLayerCount > 0) {
+            QJsonObject finalJson;
+            QMetaObject::invokeMethod(this, [&]() { finalJson = generateJsonData(); }, Qt::BlockingQueuedConnection);
+            writeJsonToFile(finalJson, m_currentJsonFilePath);
+            QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+                Q_ARG(QString, QString("已按严重程度归档 %1 个最终错误图层（补充识别 %2 个；高严重程度 / 中严重程度 / 低严重程度）。")
+                    .arg(archivedLayerCount).arg(recoveredErrorLayerCount)));
+        }
+
+        // 每完成一幅地图记录计数（进度由每个质检项触发）
+        completedMaps++;
+    }
+
+    // 全部完成后在 UI 显示
+    QMetaObject::invokeMethod(this, "appendLog", Qt::QueuedConnection,
+        Q_ARG(QString, QString("所有地图质检完成")));
+    m_globalEndTime = QDateTime::currentDateTime();
+}
+
+int map_check_task_manager::getScaleFromJson()
+{
+    if (m_currentJsonFilePath.isEmpty()) {
+        return 0;
+    }
+
+    QFile jsonFile(m_currentJsonFilePath);
+    if (!jsonFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return 0;
+    }
+    QByteArray jsonData = jsonFile.readAll();
+    jsonFile.close();
+
+    QJsonDocument doc = QJsonDocument::fromJson(jsonData);
+    if (doc.isNull() || !doc.isObject()) {
+        return 0;
+    }
+    QJsonObject root = doc.object();
+
+    for (auto geopdfIt = root.constBegin(); geopdfIt != root.constEnd(); ++geopdfIt) {
+        if (!geopdfIt.key().startsWith("Geopdf")) {
+            continue;
+        }
+
+        QJsonObject geopdfNode = geopdfIt.value().toObject();
+        if (!geopdfNode.contains("tasks") || !geopdfNode["tasks"].isObject()) {
+            continue;
+        }
+
+        QJsonObject tasks = geopdfNode["tasks"].toObject();
+        for (auto taskIt = tasks.constBegin(); taskIt != tasks.constEnd(); ++taskIt) {
+            if (!taskIt.key().startsWith("task")) {
+                continue;
+            }
+
+            QJsonObject task = taskIt.value().toObject();
+            for (auto checkIt = task.constBegin(); checkIt != task.constEnd(); ++checkIt) {
+                if (!checkIt.key().startsWith("check_item")) {
+                    continue;
+                }
+
+                QJsonObject itemJson = checkIt.value().toObject();
+                if (itemJson["name"].toString() != "比例尺数值检查") {
+                    continue;
+                }
+
+                if (!itemJson.contains("info") || !itemJson["info"].isObject() ||
+                    !itemJson["info"].toObject().contains("legend_scale")) {
+                    continue;
+                }
+
+                QString qScaleStr = itemJson["info"].toObject()["legend_scale"].toString();
+
+                if (qScaleStr.contains(":")) {
+                    QStringList scaleParts = qScaleStr.split(":", Qt::SkipEmptyParts);
+                    if (scaleParts.size() == 2) {
+                        bool ok;
+                        int scaleInt = scaleParts[1].toInt(&ok);
+                        if (ok && scaleInt > 0) {
+                            return scaleInt;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return 0;
+}
+
+void map_check_task_manager::buildShpPaths(AlgorithmFilePaths& filePaths, const CsvLayerInfo& matchedLayers)
+{
+    // -------------------------- 1. 处理gdb图层路径 --------------------------
+    // 清空原有列表和单个路径字段（避免残留旧数据）
+    filePaths.gdbShp = "";
+    // 保留 CSV 第2列的逻辑图层名。飞地漏绘等算法需要该名称在 GDB_SHP 目录中定位图层。
+    filePaths.gdbLayer = matchedLayers.gdbLayerNames.join("|");
+    QList<QString> allGdbPaths;
+
+    foreach(const QString & gdbName, matchedLayers.gdbLayerNames) {
+        if (gdbName.isEmpty()) continue;
+
+        // 拼接gdb图层路径（无分类后缀，直接加.shp）
+        QString gdbPath = QDir(filePaths.gdbShpPath).filePath(gdbName + ".shp");
+        if (QFile::exists(gdbPath) && !allGdbPaths.contains(gdbPath)) {
+            allGdbPaths << gdbPath;
+        }
+    }
+
+    // 分号拼接路径（供算法直接使用）
+    filePaths.gdbShpSemicolon = allGdbPaths.join(";");
+    // 保留单个路径字段（取第一个有效路径，兼容旧逻辑）
+    if (!allGdbPaths.isEmpty()) {
+        filePaths.gdbShp = allGdbPaths.first();
+    }
+
+
+    // -------------------------- 2. 处理实际图层路径 --------------------------
+    // 清空原有列表和单个路径字段
+    filePaths.actualShp = "";
+    filePaths.actualShpList.clear();
+
+    foreach(const QString & actualName, matchedLayers.actualLayerNames) {
+        if (actualName.isEmpty()) continue;
+
+        // 2.1 拼接基础路径（无分类后缀）
+        QString basePath = QDir(filePaths.shpPath).filePath(actualName + ".shp");
+        if (QFile::exists(basePath) && !filePaths.actualShpList.contains(basePath)) {
+            filePaths.actualShpList << basePath;
+        }
+
+        // 2.2 拼接线/面分类路径（不再搜索点要素后缀）
+        QStringList shapeSuffixes = { "_LineString", "_Polygon" };
+        foreach(const QString & suffix, shapeSuffixes) {
+            QString categoryPath = QDir(filePaths.shpPath).filePath(actualName + suffix + ".shp");
+            if (QFile::exists(categoryPath) && !filePaths.actualShpList.contains(categoryPath)) {
+                filePaths.actualShpList << categoryPath;
+            }
+        }
+    }
+
+    // 分号拼接路径（供算法直接使用）
+    filePaths.actualShpSemicolon = filePaths.actualShpList.join(";");
+    // 保留单个路径字段（取第一个有效路径，兼容旧逻辑）
+    if (!filePaths.actualShpList.isEmpty()) {
+        filePaths.actualShp = filePaths.actualShpList.first();
+    }
+
+
+    // -------------------------- 3. 处理注记图层路径 --------------------------
+    // 清空原有列表和单个路径字段
+    filePaths.annotShp = "";
+    filePaths.annotShpList.clear();
+
+    foreach(const QString & annotName, matchedLayers.actualAnnotLayerNames) {
+        if (annotName.isEmpty()) continue;
+
+        // 3.1 拼接基础路径（无分类后缀）
+        QString basePath = QDir(filePaths.shpPath).filePath(annotName + ".shp");
+        if (QFile::exists(basePath) && !filePaths.annotShpList.contains(basePath)) {
+            filePaths.annotShpList << basePath;
+        }
+
+        // 3.2 拼接线/面分类路径（不再搜索点要素后缀）
+        QStringList shapeSuffixes = { "_LineString", "_Polygon" };
+        foreach(const QString & suffix, shapeSuffixes) {
+            QString categoryPath = QDir(filePaths.shpPath).filePath(annotName + suffix + ".shp");
+            if (QFile::exists(categoryPath) && !filePaths.annotShpList.contains(categoryPath)) {
+                filePaths.annotShpList << categoryPath;
+            }
+        }
+    }
+
+    // 分号拼接路径（供算法直接使用）
+    filePaths.annotShpSemicolon = filePaths.annotShpList.join(";");
+    // 保留单个路径字段（取第一个有效路径，兼容旧逻辑）
+    if (!filePaths.annotShpList.isEmpty()) {
+        filePaths.annotShp = filePaths.annotShpList.first();
+    }
+
+    // -------------------------- 4. 填充附加字段 --------------------------
+    // 213 跨类型校验按第4列“实际注记图层”分组。213 当前也只使用首个注记图层，
+    // 因此必须使用同一个名称作为 cross_check_<名称>.json 的中间文件标识。
+    filePaths.correspondingAnnotLayer = matchedLayers.actualAnnotLayerNames.value(0);
+    filePaths.legendField = matchedLayers.legendField;
+}
+
+// 批量添加地图路径
+void map_check_task_manager::on_pushButton_BatchAdd_clicked()
+{
+    // 打开文件夹选择对话框，选择包含PDF文件的根文件夹
+    QString rootDirPath = QFileDialog::getExistingDirectory(
+        this,
+        tr("选择包含待检图的根文件夹"),
+        QString(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (rootDirPath.isEmpty()) {
+        return; // 用户取消选择
+    }
+
+    QDir rootDir(rootDirPath);
+    QStringList pdfFilters;
+    pdfFilters << "*.pdf";
+    QStringList pdfFiles = rootDir.entryList(pdfFilters, QDir::Files | QDir::Readable, QDir::Name);
+
+    if (pdfFiles.isEmpty()) {
+        QMessageBox::information(this, tr("提示"), tr("所选文件夹中未找到PDF文件"));
+        return;
+    }
+
+    int addedCount = 0;
+    int currentRow = ui->tableWidget_GeopdfPath->rowCount();
+
+    // 遍历找到的PDF文件
+    foreach(const QString & pdfFile, pdfFiles) {
+        QString pdfPath = rootDir.absoluteFilePath(pdfFile);
+        QString baseName = QFileInfo(pdfFile).baseName(); // 不含扩展名的文件名
+
+        // 构造对应的文件夹路径
+        QString shpFolderPath = rootDir.absoluteFilePath(baseName + "_shp");
+        QString gdbShpFolderPath = rootDir.absoluteFilePath(baseName + "_gdb_shp");
+        QString legendFolderPath = rootDir.absoluteFilePath(QString::fromUtf8(u8"标准图例"));
+
+        // 检查文件夹是否存在
+        bool shpFolderExists = QDir(shpFolderPath).exists();
+        bool gdbShpFolderExists = QDir(gdbShpFolderPath).exists();
+        bool legendFolderExists = QDir(legendFolderPath).exists();
+
+        // 如果至少有一个相关文件夹存在，则添加这一行
+        if (shpFolderExists || gdbShpFolderExists) {
+            ui->tableWidget_GeopdfPath->insertRow(currentRow);
+
+            // 第0列：PDF文件路径
+            setCellContent(currentRow, 0, pdfPath);
+
+            // 第1列：shp文件夹路径（如果存在）
+            if (shpFolderExists) {
+                setCellContent(currentRow, 1, shpFolderPath);
+            } else {
+                setCellContent(currentRow, 1, "");
+            }
+
+            // 第2列：gdb_shp文件夹路径（如果存在）
+            if (gdbShpFolderExists) {
+                setCellContent(currentRow, 2, gdbShpFolderPath);
+            } else {
+                setCellContent(currentRow, 2, "");
+            }
+
+            // 第3列：图例文件夹（同级目录下存在"标准图例"时自动填充，也可手动修改）
+            setCellContent(currentRow, 3, legendFolderExists ? legendFolderPath : "");
+
+            // 第4列：图面配置选择（留空，让用户手动添加）
+            setCellContent(currentRow, 4, "");
+
+            currentRow++;
+            addedCount++;
+        }
+    }
+
+    // 批量添加后调整列宽
+    ui->tableWidget_GeopdfPath->resizeColumnsToContents();
+
+    if (addedCount > 0) {
+        QMessageBox::information(this, tr("完成"),
+            tr("成功添加 %1 个地图数据组").arg(addedCount));
+    } else {
+        QMessageBox::warning(this, tr("警告"),
+            tr("未找到任何有效的地图数据组\n"
+               "请确保文件夹中包含PDF文件以及对应的_shp或_gdb_shp文件夹"));
+    }
+}
+
+// 添加地图路径
+void map_check_task_manager::on_pushButton_AddGeopdfPath_clicked()
+{
+    // 打开文件选择对话框，允许选择多个geopdf文件
+    QStringList filePaths = QFileDialog::getOpenFileNames(
+        this,
+        tr("选择pdf文件"),
+        QString(),
+        tr("pdf文件 (*.pdf);;所有文件 (*)")
+    );
+
+    if (filePaths.isEmpty()) {
+        return; // 用户取消选择
+    }
+
+    // 将选择的文件路径添加到表格中
+    int currentRow = ui->tableWidget_GeopdfPath->rowCount();
+    foreach(const QString & path, filePaths) {
+        ui->tableWidget_GeopdfPath->insertRow(currentRow);
+
+        // 为所有列创建单元格部件：第0列传完整路径，其他列传空
+        for (int col = 0; col < ui->tableWidget_GeopdfPath->columnCount(); ++col) {
+            QString content = (col == 0) ? path : "";
+            setCellContent(currentRow, col, content); // setCellContent 会自动截取第0列的文件名
+        }
+
+        currentRow++;
+    }
+    // 批量添加后再次调用，确保所有列适应内容
+    ui->tableWidget_GeopdfPath->resizeColumnsToContents();
+}
+
+// 清空地图路径
+void map_check_task_manager::on_pushButton_ClearGeopdfPath_clicked()
+{
+    // 确认是否清空
+    if (QMessageBox::question(this, tr("确认"), tr("确定要清空所有文件路径吗？")) == QMessageBox::Yes) {
+        ui->tableWidget_GeopdfPath->setRowCount(0);
+    }
+}
+
+// 上调地图优先级
+void map_check_task_manager::on_pushButton_upmap_clicked()
+{
+    int currentRow = ui->tableWidget_GeopdfPath->currentRow();
+    if (currentRow <= 0 || currentRow >= ui->tableWidget_GeopdfPath->rowCount()) {
+        return;
+    }
+
+    // 从表格项中获取当前行所有列的路径
+    QList<QString> rowContents;
+    for (int col = 0; col < ui->tableWidget_GeopdfPath->columnCount(); ++col) {
+        QTableWidgetItem* item = ui->tableWidget_GeopdfPath->item(currentRow, col);
+        rowContents.append(item ? item->data(Qt::UserRole).toString() : "");
+    }
+
+    // 删除当前行
+    ui->tableWidget_GeopdfPath->removeRow(currentRow);
+
+    // 在上一行插入新行，并重建自定义部件+表格项
+    ui->tableWidget_GeopdfPath->insertRow(currentRow - 1);
+    for (int col = 0; col < ui->tableWidget_GeopdfPath->columnCount(); ++col) {
+        setCellContent(currentRow - 1, col, rowContents[col]);
+    }
+
+    // 保持选中状态
+    ui->tableWidget_GeopdfPath->setCurrentCell(currentRow - 1, 0);
+}
+
+// 下调地图优先级（逻辑与上调类似，仅插入位置不同）
+void map_check_task_manager::on_pushButton_downmap_clicked()
+{
+    int currentRow = ui->tableWidget_GeopdfPath->currentRow();
+    int rowCount = ui->tableWidget_GeopdfPath->rowCount();
+    if (currentRow < 0 || currentRow >= rowCount - 1) {
+        return;
+    }
+
+    QList<QString> rowContents;
+    for (int col = 0; col < ui->tableWidget_GeopdfPath->columnCount(); ++col) {
+        QTableWidgetItem* item = ui->tableWidget_GeopdfPath->item(currentRow, col);
+        rowContents.append(item ? item->data(Qt::UserRole).toString() : "");
+    }
+
+    ui->tableWidget_GeopdfPath->removeRow(currentRow);
+    ui->tableWidget_GeopdfPath->insertRow(currentRow + 1);
+    for (int col = 0; col < ui->tableWidget_GeopdfPath->columnCount(); ++col) {
+        setCellContent(currentRow + 1, col, rowContents[col]);
+    }
+
+    ui->tableWidget_GeopdfPath->setCurrentCell(currentRow + 1, 0);
+}
+
+// 删除地图
+void map_check_task_manager::on_pushButton_deletemap_clicked()
+{
+    int currentRow = ui->tableWidget_GeopdfPath->currentRow();
+    if (currentRow < 0) {
+        QMessageBox::information(this, tr("提示"), tr("请先选中要删除的地图路径"));
+        return;
+    }
+
+    // 确认是否删除
+    if (QMessageBox::question(this, tr("确认"), tr("确定要删除选中的整行吗？")) == QMessageBox::Yes) {
+        ui->tableWidget_GeopdfPath->removeRow(currentRow);
+    }
+}
+
+
+//解析xml文件，获取质检项目信息
+void map_check_task_manager::parseXmlFile(const QString& xmlFilePath, QTreeWidgetItem* parentItem)
+{
+    QDomDocument doc;
+    QFile file(xmlFilePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        qWarning() << "无法打开XML文件：" << xmlFilePath;
+        return;
+    }
+
+    if (!doc.setContent(&file)) {
+        qWarning() << "XML文件解析失败：" << xmlFilePath;
+        file.close();
+        return;
+    }
+    file.close();
+
+    QDomElement root = doc.documentElement();
+    QDomNodeList scaleNodes = root.elementsByTagName("scale");
+
+    // =====================必须有 <scale> 节点 =====================
+    if (scaleNodes.isEmpty()) {
+        qWarning() << "XML格式错误：未找到 <scale> 节点，所有质检方案必须包含 <scale> 标签：" << xmlFilePath;
+        return;
+    }
+
+    // 解析所有 <scale> 节点
+    for (int i = 0; i < scaleNodes.size(); ++i) {
+        QDomElement scaleElem = scaleNodes.at(i).toElement();
+        if (scaleElem.isNull()) continue;
+
+        // 创建比例尺节点
+        QString scaleValueText = "";  // 默认为空字符串（表示与比例尺无关）
+        QDomElement valueElem = scaleElem.firstChildElement("value");
+        if (!valueElem.isNull()) {
+            scaleValueText = valueElem.text().trimmed();
+            // 支持三种格式：
+            // 1. <value/> 或 <value></value> → 空字符串（表示与比例尺无关）
+            // 2. <value>25000</value> → "25000"（具体比例尺值）
+            // 3. 无<value>节点 → 空字符串（表示与比例尺无关）
+        }
+
+        QTreeWidgetItem* scaleItem = new QTreeWidgetItem(parentItem);
+        scaleItem->setText(1, scaleValueText); // 第二列显示比例尺（空字符串表示与比例尺无关）
+
+        // 在比例尺节点下创建所有 check_item
+        QDomNodeList checkItems = scaleElem.elementsByTagName("check_item");
+        for (int j = 0; j < checkItems.size(); ++j) {
+            QDomElement checkItem = checkItems.at(j).toElement();
+            if (checkItem.isNull()) continue;
+
+            QTreeWidgetItem* checkItemItem = new QTreeWidgetItem(scaleItem);
+
+            // 质检项名称列
+            QDomElement nameElem = checkItem.firstChildElement("name");
+            if (!nameElem.isNull()) {
+                const QString checkItemName = nameElem.text().trimmed();
+                checkItemItem->setText(2, checkItemName);
+                checkItemItem->setData(2, Qt::UserRole, xmlFilePath);
+
+                // XML 配置字段和输出字段均使用 severity。
+                const QString severity = normalizedSeverity(
+                    checkItem.firstChildElement("severity").text());
+                m_checkItemSeverity.insert(
+                    checkItemSeverityKey(parentItem->text(0), checkItemName), severity);
+            }
+
+            // 默认未检查状态图标
+            setCompletionStatusIcon(checkItemItem, CompletionStatus::NotChecked);
+        }
+    }
+}
+
+void map_check_task_manager::beginMapTaskStatus(int taskRow)
+{
+    m_displayedTaskRow = taskRow;
+    resetAllCheckItemStatusIcons();
+}
+
+// 重置所有质检项的状态图标为未质检状态
+void map_check_task_manager::resetAllCheckItemStatusIcons()
+{
+    QTreeWidget* tree = ui->treeWidget_xmlTaskData;
+    if (!tree) return;
+    
+    // 遍历所有顶级项（比例尺）
+    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+        QTreeWidgetItem* scaleItem = tree->topLevelItem(i);
+        if (!scaleItem) continue;
+        
+        // 遍历比例尺下的所有子项
+        for (int j = 0; j < scaleItem->childCount(); ++j) {
+            QTreeWidgetItem* childItem = scaleItem->child(j);
+            if (!childItem) continue;
+            
+            // 如果是质检项节点（有3列的项），重置其图标
+            if (childItem->childCount() == 0 && !childItem->text(2).isEmpty()) {
+                setCompletionStatusIcon(childItem, CompletionStatus::NotChecked);
+            }
+            
+            // 遍历质检项的子项（如果有的话）
+            for (int k = 0; k < childItem->childCount(); ++k) {
+                QTreeWidgetItem* checkItem = childItem->child(k);
+                if (checkItem && !checkItem->text(2).isEmpty()) {
+                    setCompletionStatusIcon(checkItem, CompletionStatus::NotChecked);
+                }
+            }
+        }
+    }
+}
+
+// "质检报告导出"按钮点击槽函数
+void map_check_task_manager::on_pushButton_ReportExport_clicked()
+{
+    // 发射信号，让插件主类处理报告导出
+    emit reportRequested(m_currentJsonFilePath);
+}

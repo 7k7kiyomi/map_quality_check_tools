@@ -1,0 +1,51 @@
+{
+    "check_item1": {
+        "err_exist": false,
+        "errors": {
+        },
+        "id": "501",
+        "info": {
+            "auto_confirmed_count": 0,
+            "auto_loaded_layer_count": 0,
+            "confirmed_error_count": 0,
+            "description": "未发现图幅接边与系列化表达检查错误。",
+            "error_line_count": 0,
+            "error_line_shp": "",
+            "error_link_count": 0,
+            "error_link_shp": "",
+            "error_pair_count": 0,
+            "error_point_count": 0,
+            "error_point_shp": "",
+            "error_polygon_count": 0,
+            "error_polygon_shp": "",
+            "executed_pair_count": 1,
+            "execution_records": [
+                {
+                    "left_name": "甲县",
+                    "pair_name": "甲县 - 乙县",
+                    "result_err_exist": true,
+                    "result_status": "质检成功",
+                    "right_name": "乙县"
+                }
+            ],
+            "execution_status": "质检成功",
+            "failed_pair_count": 0,
+            "final_error_count": 0,
+            "layer_loading_failures": [
+            ],
+            "log_path": "F:/map_quality_check_tools---20160108/map_quality_check_tools/ui_class/_output_loading_validation/run_20261105_222335_442/501_main_only/乙县/质检日志/图幅接边与系列化表达.log",
+            "needs_review_count": 0,
+            "not_evaluable_count": 0,
+            "pair_count": 1,
+            "partial_pair_count": 0,
+            "result_shp": "",
+            "skipped_pair_count": 0,
+            "summary": "未发现图幅接边与系列化表达检查错误。"
+        },
+        "name": "图幅接边与系列化表达",
+        "review_errors": {
+        },
+        "severity": "高",
+        "status": "质检成功"
+    }
+}

@@ -1,0 +1,681 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="ui">
+      <UniqueIdentifier>{25892368-3649-44bc-88a6-71b518f4a5a6}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{f7355d6c-0eb7-4db2-b77a-f1c1010dbfe8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{5ee82520-890a-4d8e-b4e3-21161da8af18}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ui_class">
+      <UniqueIdentifier>{b547eb9b-f15e-48fa-94f1-42a343e8d903}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Generated Files">
+      <UniqueIdentifier>{f4a0fcee-b3bb-4cd9-809a-935f680da54a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="ui_task">
+      <UniqueIdentifier>{56e04bad-3399-48ec-b95e-19baf2144b94}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="algorithm">
+      <UniqueIdentifier>{5a15c03d-e2f5-41f7-9d12-34442d7b48f1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="commontype">
+      <UniqueIdentifier>{34e12d5a-3704-42d7-8f7d-90923de86152}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="icon">
+      <UniqueIdentifier>{3574ea32-9545-4af1-a31e-a56fa77ae6b1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="map_quality_check_tools.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_map_quality_check_tools.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_se_geojson2shp.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ScaleCheckerDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_ScaleCheckerDialog.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ScaleCheckerNormativeDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_ScaleCheckerNormativeDialog.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\xml_editor.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_xml_editor.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\RuleSclect.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_RuleSclect.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\map_check_task_manager.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_map_check_task_manager.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\Drawing_Layout.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_Drawing_Layout.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_QualityJsonExporter.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\FileNameDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_FileNameDialog.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\feature_conflict_wrapper.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\feature_density_wrapper.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\map_check_algorithms.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\algorithm_ScaleChecker.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\FeaturePointToleranceChecker.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\IFeaturePointToleranceChecker.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\IMapFrameAlignmentCheck.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\json_result_parser.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\MapFrameAlignmentCheck.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ScaleChecker.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_admin_color_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_layer_missing_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_misplacement_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_map_annotation_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_map_name_match_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_map_style_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_min_bend_threshold_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\SmoothnessChecker.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\AngleCheckDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\AngleCheckInterface.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\GeometryValidator.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\JsonLogger.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\XmlConfigReader.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_annotation_algorithm.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_feature_conflict_check.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_feature_density_check.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_global_blank_check.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_font_mapping.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\AlgorithmThread.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_required_layers_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ContainmentCheckDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ContainmentCheckInterface.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_algorithm_ScaleChecker.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_AlgorithmThread.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_AngleCheckDialog.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_ContainmentCheckDialog.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_FeaturePointToleranceChecker.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_JsonLogger.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_map_check_algorithms.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_map_check_common.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_QualityCheckConfig.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_ReadShp.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_ScaleChecker.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_SmoothnessChecker.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_XmlConfigReader.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_content_frame_misalignment_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\QualityJsonExporter.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\qrc_map_quality_check_tools.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_boundary_missing_level_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_administrative_division_fit_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_boundary_jump_draw_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_se_boundary_jump_draw_check_algorithm.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_boundarytuopu.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_se_boundarytuopu.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_admin_name_annotation_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\sensitive_content_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\cross_check.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_admin_color_style_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_enclave_missing_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_point_isolation_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_redundancy_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_redundancy_transport.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_redundancy_rivers.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_redundancy_villages.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_annotation_content_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_boundary_anomaly_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_boundary_band_render_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\mapdata_download.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="GeneratedFiles\Release\moc_se_image_map_check.cpp">
+      <Filter>Generated Files</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_absolute_offset_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_preprocess_dialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\SeriesCrossScaleExpressionTaskDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_annotation_advanced_check_interface.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\FeatureSpacingCheckDialog.cpp" />
+    <ClCompile Include="ui_class\boundary_band_legend_style.cpp" />
+    <ClCompile Include="ui_class\boundary_band_geometry.cpp" />
+    <ClCompile Include="ui_class\SeriesMapEdgeMatchTaskDialog.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_missing_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ReadShp.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\ReadShp_interface.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\QualityCheckConfig.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_legend_match_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_symbol_direction_algorithm.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_annotation_check_interface.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_feature_matching.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="algorithm\se_annotation_advanced_algorithm.cpp">
+      <Filter>algorithm</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_annotation_content_check_interface.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_feature_out_of_boundary_check_algorithm.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+    <ClCompile Include="ui_class\se_image_map_check.cpp">
+      <Filter>ui_class</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="map_quality_check_tools.h">
+      <Filter>Header Files</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\ScaleCheckerDialog.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\ScaleCheckerDialog.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\ScaleCheckerNormativeDialog.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\ScaleCheckerNormativeDialog.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\xml_editor.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\xml_editor.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\RuleSclect.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\map_check_task_manager.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\Drawing_Layout.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\Drawing_Layout.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\FileNameDialog.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\FileNameDialog.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\map_check_algorithms.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\map_check_common.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\algorithm_ScaleChecker.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\AngleCheckDialog.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\QualityCheckConfig.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\preprocess_dialog.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="map_quality_check_tools.qrc" />
+    <CustomBuild Include="ui\map_check_task_manager.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\ScaleChecker.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\SmoothnessChecker.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\XmlConfigReader.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\AlgorithmThread.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\ContainmentCheckDialog.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\FeaturePointToleranceChecker.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\JsonLogger.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\QualityJsonExporter.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="algorithm\se_annotation_algorithm.h">
+      <Filter>algorithm</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\se_boundary_jump_draw_check_algorithm.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\se_boundary_jump_draw_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\se_boundarytuopu.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui_class\se_boundarytuopu.h">
+      <Filter>ui_class</Filter>
+    </CustomBuild>
+    <CustomBuild Include="ui\mapdata_download.ui">
+      <Filter>ui</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="GeneratedFiles\Release\ui_vector_format_conversion.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_xml_editor.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_ScaleCheckerNormativeDialog.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_Drawing_Layout.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_map_check_task_manager.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_ScaleCheckerDialog.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_FileNameDialog.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\IFeaturePointToleranceChecker.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\IMapFrameAlignmentCheck.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\json_result_parser.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\MapFrameAlignmentCheck.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_admin_color_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_error_define.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_feature_layer_missing_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_feature_misplacement_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_map_annotation_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_map_name_match_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_map_style_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_min_bend_threshold_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\AngleCheckInterface.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\GeometryValidator.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_annotation_advanced_algorithm.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\cross_check.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_annotation_advanced_check_interface.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_feature_conflict_check.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_feature_density_check.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_global_blank_check.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_font_mapping.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="commontype\se_error_define.h">
+      <Filter>commontype</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_legend_match_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_required_layers_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\ContainmentCheckInterface.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_content_frame_misalignment_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_se_boundary_jump_draw_check_algorithm.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_se_boundarytuopu.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Desktop\name\name\map_quality_check_tools\ui_class\se_admin_name_annotation_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="D:\Desktop\212_敏感文字合规性检查\sensitive_content_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_admin_color_style_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_enclave_missing_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_annotation_content_check_interface.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_annotation_content_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_boundary_anomaly_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\algorithm_file_paths.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\point_isolation_output.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_feature_redundancy_internal.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\line_topology_issue_aggregation.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\line_topology_shared_tasks.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\SeriesCrossScaleExpressionTaskDialog.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_boundary_band_render_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\mapdata_download.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_absolute_offset_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_preprocess_dialog.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\ReadShp.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\ReadShp_interface.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="GeneratedFiles\Release\ui_preprocess_dialog.h">
+      <Filter>Generated Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\FeatureSpacingCheckDialog.h" />
+    <ClInclude Include="ui_class\boundary_band_color.h" />
+    <ClInclude Include="ui_class\boundary_band_legend_style.h" />
+    <ClInclude Include="ui_class\boundary_band_geometry.h" />
+    <ClInclude Include="ui_class\SeriesMapEdgeMatchTaskDialog.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\SeriesSheetOverview.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\cross_scale_finding_presentation.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\cross_scale_support.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\cross_scale_tolerance.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\quality_result_layer_group.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_feature_missing_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\road_topology_network.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_symbol_direction_algorithm.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_annotation_check_interface.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="algorithm\se_feature_matching.h">
+      <Filter>algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\annotation_match_ownership.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_feature_out_of_boundary_check_algorithm.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+    <ClInclude Include="ui_class\se_image_map_check.h">
+      <Filter>ui_class</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="map_quality_check_tools.rc" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="icon\勾选.png">
+      <Filter>icon</Filter>
+    </Image>
+    <Image Include="icon\红叉.png">
+      <Filter>icon</Filter>
+    </Image>
+    <Image Include="icon\叹号.png">
+      <Filter>icon</Filter>
+    </Image>
+  </ItemGroup>
+</Project>

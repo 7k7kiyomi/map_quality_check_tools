@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--拦河坝图层质检方案-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：要素层缺失检查（ID:101） -->
+        <check_item>
+            <name>要素层缺失检查</name>
+            <id>101</id>
+            <severity>中</severity>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>要素层缺失检查中库体数据缓冲区半径</description>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+        </check_item>
+        <!-- 质检项2：要素缺失检查（ID:102） -->
+        <check_item>
+            <name>要素缺失检查</name>
+            <id>102</id>
+            <severity>中</severity>
+            <rule>
+                <name>属性项</name>
+                <description>库体数据中区分拦河坝的属性项</description>
+                <value>CLASID</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>属性值</name>
+                <description>属性项对拦河坝的属性值</description>
+                <value>270600</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>建立缓冲区半径</description>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

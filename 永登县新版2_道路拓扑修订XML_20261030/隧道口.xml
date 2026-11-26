@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--隧道口图层质检方案-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：关系检查（ID:113） -->
+        <check_item>
+            <name>关系检查</name>
+            <id>113</id>
+            <severity>高</severity>
+            <rule>
+                <name>具体项</name>
+                <description>关系检查的具体项</description>
+                <value>隧道口位置检查</value>
+            </rule>
+            <rule>
+                <name>隧道口缓冲半径</name>
+                <description>隧道口附近关联的道路和隧道的最大图上半径</description>
+                <value>2</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>隧道口位置检查关联的道路图层</name>
+                <value>在建高速铁路;高速铁路;普通铁路;在建高速公路;高速公路;快速路;国道;省道;县道;乡道;专用公路;连接道;村道</value>
+            </rule>
+            <rule>
+                <name>隧道口位置检查关联的隧道图层</name>
+                <value>铁路隧道;公路隧道</value>
+            </rule>
+        </check_item>
+        <!-- 质检项2：符号方向性检查（ID:209） -->
+        <check_item>
+            <id>209</id>
+            <severity>高</severity>
+            <name>符号方向性检查</name>
+            <rule>
+                <name>符号类型</name>
+                <value>隧道口</value>
+            </rule>
+            <rule>
+                <name>关联图层</name>
+                <value>公路隧道;铁路隧道</value>
+            </rule>
+            <rule>
+                <name>检查类型</name>
+                <value>垂直</value>
+            </rule>
+            <rule>
+                <name>搜索半径</name>
+                <unit>毫米</unit>
+                <value>10</value>
+            </rule>
+            <rule>
+                <name>角度阈值</name>
+                <unit>度</unit>
+                <value>10</value>
+            </rule>
+        </check_item>
+        <!-- 质检项3：标准图例匹配检查（ID:304） -->
+        <check_item>
+            <name>标准图例匹配检查</name>
+            <id>304</id>
+            <severity>高</severity>
+            <rule>
+                <name>标准图例匹配检查</name>
+                <description>图层与标准图例是否一致</description>
+            </rule>
+        </check_item>
+
+    </scale>
+</check_list>

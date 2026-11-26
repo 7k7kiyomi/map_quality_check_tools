@@ -1,0 +1,1 @@
+<check_list><scale><check_item><id>502</id><name>同系列跨比例尺表达检查</name><rule><name>series_cross_scale_output_severity</name><value>预警</value></rule></check_item></scale></check_list>

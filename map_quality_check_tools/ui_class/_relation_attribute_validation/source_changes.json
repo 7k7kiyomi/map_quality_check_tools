@@ -1,0 +1,434 @@
+[
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        QStringLiteral(\"sbn\"), QStringLiteral(\"sbx\"), QStringLiteral(\"qml\")"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    const QStringList relationFields{QStringLiteral(\"l_sheet\"), QStringLiteral(\"r_sheet\"), QStringLiteral(\"pair_name\"),"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        QStringLiteral(\"l_shp\"), QStringLiteral(\"r_shp\"), QStringLiteral(\"l_fid\"), QStringLiteral(\"r_fid\")};"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    auto relationAttributes = [&](const QJsonObject& finding) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QJsonObject context = m_pairRunContext.value(finding.value(QStringLiteral(\"pair_name\")).toString());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString left = context.value(QStringLiteral(\"left_name\")).toString(finding.value(QStringLiteral(\"left_sheet\")).toString());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString right = context.value(QStringLiteral(\"right_name\")).toString(finding.value(QStringLiteral(\"right_sheet\")).toString());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        QString pair = finding.value(QStringLiteral(\"pair_name\")).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (pair.isEmpty() && (!left.isEmpty() || !right.isEmpty())) pair = QStringLiteral(\"%1 → %2\").arg(left, right);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        return QVariantMap{{QStringLiteral(\"l_sheet\"), left}, {QStringLiteral(\"r_sheet\"), right},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"pair_name\"), pair},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"l_shp\"), finding.value(QStringLiteral(\"left_shp\")).toString(QFileInfo(finding.value(QStringLiteral(\"left_shp_path\")).toString()).fileName())},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"r_shp\"), finding.value(QStringLiteral(\"right_shp\")).toString(QFileInfo(finding.value(QStringLiteral(\"right_shp_path\")).toString()).fileName())},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"l_fid\"), finding.value(QStringLiteral(\"left_fid\")).toVariant().toString()},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"r_fid\"), finding.value(QStringLiteral(\"right_fid\")).toVariant().toString()}};"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    auto shapefileText = [](QString text, int maxBytes) -> QString {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (text.toUtf8().size() <= maxBytes) return text;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        while (!text.isEmpty() && text.toUtf8().size() > maxBytes - 3) text.chop(1);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        return text + QStringLiteral(\"…\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    auto saveResultTablePresentation = [&](const QString& path, const QVector<QJsonObject>& findings) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        QgsVectorLayer layer(path, QFileInfo(path).completeBaseName(), QStringLiteral(\"ogr\"));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (!layer.isValid()) return false;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        bool sameScale = false, crossScale = false;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        for (const QJsonObject& finding : findings) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (mainOutputMap(finding).isEmpty()) crossScale = true;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            else sameScale = true;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString leftLabel = crossScale ? (sameScale ? QStringLiteral(\"左侧地图\") : QStringLiteral(\"大比例尺地图\")) : QStringLiteral(\"主检查地图\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString rightLabel = crossScale ? (sameScale ? QStringLiteral(\"右侧地图\") : QStringLiteral(\"小比例尺地图\")) : QStringLiteral(\"关联地图\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString leftPrefix = crossScale ? (sameScale ? QStringLiteral(\"左侧\") : QStringLiteral(\"大比例尺\")) : QStringLiteral(\"主图\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString rightPrefix = crossScale ? (sameScale ? QStringLiteral(\"右侧\") : QStringLiteral(\"小比例尺\")) : QStringLiteral(\"关联图\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QMap<QString, QString> aliases{{QStringLiteral(\"l_sheet\"), leftLabel}, {QStringLiteral(\"r_sheet\"), rightLabel},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"pair_name\"), QStringLiteral(\"检查关系\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"l_shp\"), leftPrefix + QStringLiteral(\"图层\")}, {QStringLiteral(\"r_shp\"), rightPrefix + QStringLiteral(\"图层\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"l_fid\"), leftPrefix + QStringLiteral(\"要素FID\")}, {QStringLiteral(\"r_fid\"), rightPrefix + QStringLiteral(\"要素FID\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"err_id\"), QStringLiteral(\"错误编号\")}, {QStringLiteral(\"err_type\"), QStringLiteral(\"错误类型\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"sub_rule\"), QStringLiteral(\"检查项\")}, {QStringLiteral(\"message\"), QStringLiteral(\"错误说明\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"src_sheet\"), QStringLiteral(\"标记归属地图\")}, {QStringLiteral(\"src_layer\"), QStringLiteral(\"标记来源图层\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"src_fid\"), QStringLiteral(\"标记来源FID\")}, {QStringLiteral(\"src_side\"), QStringLiteral(\"标记来源侧\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"field\"), QStringLiteral(\"检查字段\")}, {QStringLiteral(\"actual_val\"), QStringLiteral(\"实际值\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"expect_val\"), QStringLiteral(\"期望值\")}, {QStringLiteral(\"peer_val\"), QStringLiteral(\"对侧值\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"actual\"), QStringLiteral(\"实际值\")}, {QStringLiteral(\"expect\"), QStringLiteral(\"期望值\")},"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            {QStringLiteral(\"distance\"), QStringLiteral(\"距离（米）\")}, {QStringLiteral(\"tolerance\"), QStringLiteral(\"容差（米）\")}};"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        for (auto it = aliases.constBegin(); it != aliases.constEnd(); ++it) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            const int index = layer.fields().indexFromName(it.key());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (index >= 0) layer.setFieldAlias(index, it.value());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        auto config = layer.attributeTableConfig();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        config.update(layer.fields());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        auto columns = config.columns();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QStringList preferred{QStringLiteral(\"l_sheet\"), QStringLiteral(\"r_sheet\"), QStringLiteral(\"pair_name\"),"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            QStringLiteral(\"message\"), QStringLiteral(\"sub_rule\"), QStringLiteral(\"l_shp\"), QStringLiteral(\"l_fid\"),"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            QStringLiteral(\"r_shp\"), QStringLiteral(\"r_fid\")};"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        auto columnRank = [&](const QString& name) { const int index = preferred.indexOf(name); return index < 0 ? preferred.size() : index; };"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        std::stable_sort(columns.begin(), columns.end(), [&](const auto& left, const auto& right) { return columnRank(left.name) < columnRank(right.name); });"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        for (auto& column : columns) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (relationFields.contains(column.name)) { column.hidden = false; column.width = column.name.endsWith(QStringLiteral(\"fid\")) ? 100 : 200; }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (column.name == QStringLiteral(\"pair_name\")) column.width = 340;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (column.name == QStringLiteral(\"message\")) column.width = 460;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        config.setColumns(columns);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        layer.setAttributeTableConfig(config);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        bool saved = false;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QFileInfo info(path);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString error = layer.saveNamedStyle(QDir(info.absolutePath()).filePath(info.completeBaseName() + QStringLiteral(\".qml\")),"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            saved, QgsMapLayer::Fields | QgsMapLayer::AttributeTable);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (!saved && m_outputEdit) m_outputEdit->append(QStringLiteral(\"结果属性表配置保存失败：%1；%2\").arg(path, error));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        return saved;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"pair_name\"), QVariant::String, QStringLiteral(\"string\"), 254));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"l_sheet\"), QVariant::String, QStringLiteral(\"string\"), 254));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"r_sheet\"), QVariant::String, QStringLiteral(\"string\"), 254));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"l_shp\"), QVariant::String, QStringLiteral(\"string\"), 254));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"r_shp\"), QVariant::String, QStringLiteral(\"string\"), 254));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QVariantMap relation = relationAttributes(err);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        for (auto it = relation.constBegin(); it != relation.constEnd(); ++it) feature.setAttribute(it.key(), it.value());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        for (const QgsField& field : fields) if (field.type() == QVariant::String)"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            feature.setAttribute(field.name(), shapefileText(feature.attribute(field.name()).toString(), field.length()));"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        QVariantMap attrs = relationAttributes(err);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        QStringList fieldNames = relationFields;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        fieldNames << QStringLiteral(\"err_id\") << QStringLiteral(\"err_type\") << QStringLiteral(\"sub_rule\")"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            << QStringLiteral(\"src_sheet\") << QStringLiteral(\"src_layer\") << QStringLiteral(\"src_fid\")"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            << QStringLiteral(\"src_side\") << QStringLiteral(\"message\");"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            for (auto it = attrs.constBegin(); it != attrs.constEnd(); ++it)"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                feature.setAttribute(it.key(), it.value().type() == QVariant::String ? shapefileText(it.value().toString(), 254) : it.value());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    };"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    };"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    };"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                QStringLiteral(\"pair_name\"),QStringLiteral(\"l_sheet\"),QStringLiteral(\"r_sheet\"),QStringLiteral(\"l_shp\"),QStringLiteral(\"r_shp\"),"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                QStringLiteral(\"l_fid\"),QStringLiteral(\"r_fid\"),QStringLiteral(\"field\"),QStringLiteral(\"actual\"),"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                QStringLiteral(\"expect\"),QStringLiteral(\"distance\"),QStringLiteral(\"tolerance\"),QStringLiteral(\"message\")}) {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "                if (populated || relationFields.contains(name)) { linkFields.append(fields.at(column)); retainedColumns << column; }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        for (const QString& path : finalPaths)"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "            if (!saveResultTablePresentation(path, path == mapPaths.linkShpPath ? linkErrors : mapRecords)) outputOk = false;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        }"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "        QStringLiteral(\"sbn\"), QStringLiteral(\"sbx\")"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"pair_name\"), QVariant::String, QStringLiteral(\"string\"), 120));"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"l_sheet\"), QVariant::String, QStringLiteral(\"string\"), 60));"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"r_sheet\"), QVariant::String, QStringLiteral(\"string\"), 60));"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"l_shp\"), QVariant::String, QStringLiteral(\"string\"), 120));"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "    fields.append(QgsField(QStringLiteral(\"r_shp\"), QVariant::String, QStringLiteral(\"string\"), 120));"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "        QVariantMap attrs;"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "        QStringList fieldNames{QStringLiteral(\"err_id\"), QStringLiteral(\"err_type\"), QStringLiteral(\"sub_rule\"),"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            QStringLiteral(\"src_sheet\"), QStringLiteral(\"src_layer\"), QStringLiteral(\"src_fid\"),"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            QStringLiteral(\"src_side\"), QStringLiteral(\"message\")};"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "            for (auto it = attrs.constBegin(); it != attrs.constEnd(); ++it) feature.setAttribute(it.key(), it.value());"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                QStringLiteral(\"l_sheet\"),QStringLiteral(\"r_sheet\"),QStringLiteral(\"l_shp\"),QStringLiteral(\"r_shp\"),"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                QStringLiteral(\"l_fid\"),QStringLiteral(\"r_fid\"),QStringLiteral(\"field\"),QStringLiteral(\"l_val\"),"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                QStringLiteral(\"r_val\"),QStringLiteral(\"distance\"),QStringLiteral(\"tolerance\"),QStringLiteral(\"message\")}) {"
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "                if (populated) { linkFields.append(fields.at(column)); retainedColumns << column; }"
+  }
+]

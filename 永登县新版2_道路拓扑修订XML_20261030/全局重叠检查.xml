@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!--全局重叠检查规则-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：重叠检查（ID:206） -->
+        <check_item>
+            <id>206</id>
+            <severity>高</severity>
+            <name>重叠检查</name>
+            <rule>
+                <name>允许重叠</name>
+                <description>符号与符号、注记与符号、注记与注记间是否允许重叠</description>
+                <value>false</value>
+            </rule>
+            <rule>
+                <name>重叠容差</name>
+                <description>几何重叠判断的容差值，避免微小间隙误判为重叠</description>
+                <unit>毫米</unit>
+                <value>2</value>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

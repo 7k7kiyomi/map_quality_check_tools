@@ -1,0 +1,251 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Task_Model_ARD_RuleDlg</class>
+ <widget class="QDialog" name="Task_Model_ARD_RuleDlg">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1420</width>
+    <height>860</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>质检方案配置</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout_6">
+   <item row="1" column="0">
+    <spacer name="horizontalSpacer">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>682</width>
+       <height>20</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+   <item row="1" column="1">
+    <widget class="QPushButton" name="pushButton_OK">
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>确定</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QPushButton" name="pushButton_Cancel">
+     <property name="text">
+      <string>关闭</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="0" colspan="3">
+    <widget class="QGroupBox" name="groupBox">
+     <property name="title">
+      <string/>
+     </property>
+     <layout class="QGridLayout" name="gridLayout_5">
+   <item row="0" column="0" rowspan="2">
+       <widget class="QGroupBox" name="groupBox_2">
+        <property name="title">
+         <string>质检方案</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout">
+         <item row="0" column="0" colspan="3">
+          <widget class="QLabel" name="label_5">
+           <property name="text">
+            <string>当前文件路径</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" colspan="3">
+          <widget class="QLineEdit" name="lineEdit_InputDataPath">
+           <property name="toolTip">
+            <string>请选择映射规则文件路径</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QPushButton" name="pushButton_Open">
+           <property name="text">
+            <string>浏览</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QPushButton" name="pushButton_newfile">
+           <property name="text">
+            <string>新建</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="2">
+          <widget class="QPushButton" name="pushButton_LoadFolder">
+           <property name="text">
+            <string>添加文件夹</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0" colspan="3">
+          <widget class="QLabel" name="label_ConfigFiles">
+           <property name="text">
+            <string>已加载文件</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0" colspan="3">
+          <widget class="QLineEdit" name="lineEdit_SearchConfigFiles">
+           <property name="placeholderText">
+            <string>搜索质检方案文件名或路径</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0" colspan="3">
+          <widget class="QListWidget" name="listWidget_ConfigFiles"/>
+         </item>
+        </layout>
+       </widget>
+      </item>
+   <item row="0" column="1">
+       <widget class="QGroupBox" name="groupBox_3">
+        <property name="title">
+         <string>质检方案</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_4">
+         <item row="0" column="0">
+          <widget class="QTreeWidget" name="treeWidget_TaskModelData">
+           <column>
+            <property name="text">
+             <string>id</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>质检项</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>质检规则名称</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>质检规则描述</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>质检规则数值</string>
+            </property>
+           </column>
+           <column>
+            <property name="text">
+             <string>质检规则单位</string>
+            </property>
+           </column>
+          </widget>
+         </item>
+   <item row="2" column="0">
+          <widget class="QGroupBox" name="groupBox_5">
+           <property name="title">
+            <string>质检项修改</string>
+           </property>
+           <layout class="QGridLayout" name="gridLayout_3">
+            <item row="0" column="2">
+             <spacer name="horizontalSpacer_2">
+              <property name="orientation">
+               <enum>Qt::Orientation::Horizontal</enum>
+              </property>
+              <property name="sizeHint" stdset="0">
+               <size>
+                <width>40</width>
+                <height>20</height>
+               </size>
+              </property>
+             </spacer>
+            </item>
+            <item row="0" column="0">
+             <widget class="QLabel" name="label_2">
+              <property name="text">
+               <string>输入质检项名称</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="lineEdit_CheckItemName">
+              <property name="toolTip">
+               <string>请输入要查找的任务名称（模糊查找）</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="3">
+             <widget class="QPushButton" name="pushButton_Query">
+              <property name="text">
+               <string>查找质检项</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="5">
+             <widget class="QPushButton" name="pushButton_DeleteCheckItem">
+              <property name="text">
+               <string>删除质检项</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="4">
+             <widget class="QPushButton" name="pushButton_AddCheckItem">
+              <property name="text">
+               <string>增加质检项</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QGroupBox" name="groupBox_4">
+        <property name="title">
+         <string>质检方案保存</string>
+        </property>
+        <layout class="QGridLayout" name="gridLayout_2">
+         <item row="0" column="0" rowspan="2" colspan="2">
+          <widget class="QLabel" name="label_7">
+           <property name="text">
+            <string>文件路径</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QPushButton" name="pushButton_Save">
+           <property name="text">
+            <string>另存</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLineEdit" name="lineEdit_OutputDataPath">
+           <property name="toolTip">
+            <string>设置映射规则文件保存路径</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

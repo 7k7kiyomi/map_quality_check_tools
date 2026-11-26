@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 点要素孤立检查规则；标准图层为水库，实际图层为点状水库；支持面几何及由闭合填充路径恢复的符号面。 -->
+<check_list>
+    <scale>
+        <!-- 空值表示通用规则，使用当前质检任务的比例尺换算图上容差。 -->
+        <value></value>
+        <check_item>
+            <name>点要素孤立检查</name>
+            <!-- 独立质检项 ID：118。 -->
+            <id>118</id>
+            <severity>高</severity>
+            <rule>
+                <name>检查图层</name>
+                <description>待检成果图层，对应解析后的点状水库.shp；读取真实几何类型，直接使用面几何，或按符号分组从有效闭合填充路径恢复检查面</description>
+                <value>点状水库</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>对应GDB图层</name>
+                <description>用于校验库体图层映射；连接判断使用解析后的成果几何</description>
+                <value>HYDA_HPSK</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>要素分组字段</name>
+                <description>同一图层中相同非空字段值的记录属于同一符号；描边与填充合并为一个待检对象，组内路径不互相充当关联要素</description>
+                <value>symbol_id</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>几何处理方式</name>
+                <description>直接保留合法面几何；线状符号优先使用 filled=true 且坐标实际闭合的有效填充路径恢复面，不能恢复时记录几何异常；不使用包围盒代替水库面</description>
+                <value>面优先并恢复闭合填充路径</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>关联图层</name>
+                <description>标准图层名称，经配置表映射实际成果并按文件路径去重；水系面全层及其他水库符号参与检查，水库符号须先分组恢复面；排除自身整组及已确认的重复表示；GDB几何仅辅助核对，不直接替代成果连接对象</description>
+                <value>一级河流;二级河流;三级河流;四级河流;五级河流;六级河流;等外河流;时令河;总干渠;干渠;支渠;河流面;湖泊水库面;水库</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>连接位置</name>
+                <description>比较水库完整面几何与关联线或面的二维最短距离；相交、接触或包含均视为连接；分离时距离小于或等于连接容差亦视为连接</description>
+                <value>任意位置</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>连接容差</name>
+                <description>建议初值，需按业务要求确定；距离小于或等于容差即连接，0表示严格几何连接</description>
+                <value>0.1</value>
+                <unit>毫米</unit>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

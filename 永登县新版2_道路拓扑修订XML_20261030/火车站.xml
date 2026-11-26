@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--火车站图层质检方案-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：要素层缺失检查（ID:101） -->
+        <check_item>
+            <name>要素层缺失检查</name>
+            <id>101</id>
+            <severity>高</severity>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>要素层缺失检查中库体数据缓冲区半径</description>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+        </check_item>
+        <!-- 质检项2：要素缺失检查（ID:102） -->
+        <check_item>
+            <name>要素缺失检查</name>
+            <id>102</id>
+            <severity>高</severity>
+            <rule>
+                <name>属性项</name>
+                <description>库体数据中区分火车站的属性项</description>
+                <value>CZFJ</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>属性值</name>
+                <description>属性项对应火车站的属性值</description>
+                <value>3</value>
+                <unit></unit>
+            </rule>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>建立缓冲区半径</description>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+        </check_item>
+        <!-- 质检项3：符号方向性检查（ID:209） -->
+        <check_item>
+            <id>209</id>
+            <severity>高</severity>
+            <name>符号方向性检查</name>
+            <rule>
+                <name>符号类型</name>
+                <value>火车站</value>
+            </rule>
+            <rule>
+                <name>关联图层</name>
+                <value>在建高速铁路;高速铁路;普通铁路</value>
+            </rule>
+            <rule>
+                <name>检查类型</name>
+                <value>平行</value>
+            </rule>
+            <rule>
+                <name>搜索半径</name>
+                <unit>毫米</unit>
+                <value>5</value>
+            </rule>
+            <rule>
+                <name>角度阈值</name>
+                <unit>度</unit>
+                <value>10</value>
+            </rule>
+        </check_item>
+        <!-- 质检项4：标准图例匹配检查（ID:304） -->
+        <check_item>
+            <name>标准图例匹配检查</name>
+            <id>304</id>
+            <severity>高</severity>
+            <rule>
+                <name>标准图例匹配检查</name>
+                <description>图层与标准图例是否一致</description>
+            </rule>
+        </check_item>
+
+    </scale>
+</check_list>

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--泉图层质检方案-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：要素层缺失检查（ID:101） -->
+        <check_item>
+            <name>要素层缺失检查</name>
+            <id>101</id>
+            <severity>高</severity>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>要素层缺失检查中库体数据缓冲区半径</description>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+        </check_item>
+
+        <!-- 质检项2：绝对偏移检查（ID:104） -->
+        <check_item>
+            <name>绝对偏移检查</name>
+            <id>104</id>
+            <severity>低</severity>
+            <rule>
+                <name>缓冲区半径</name>
+                <description>库体数据缓冲区半径</description>
+                <!-- 0.2（河流宽度一半）+0.3 -->
+                <value>4.35</value>
+                <unit>毫米</unit>
+            </rule>
+        </check_item>
+
+        <!-- 质检项3：符号方向性检查（ID:209） -->
+        <check_item>
+            <id>209</id>
+            <severity>高</severity>
+            <name>符号方向性检查</name>
+            <rule>
+                <name>符号类型</name>
+                <value>泉</value>
+            </rule>
+            <rule>
+                <name>关联图层</name>
+                <value>一级河流;二级河流;三级河流;四级河流;五级河流;六级河流;等外河流</value>
+            </rule>
+            <rule>
+                <name>检查类型</name>
+                <value>方向一致</value>
+            </rule>
+            <rule>
+                <name>搜索半径</name>
+                <unit>毫米</unit>
+                <value>5</value>
+            </rule>
+            <rule>
+                <name>角度阈值</name>
+                <unit>度</unit>
+                <value>15</value>
+            </rule>
+        </check_item>
+        <!-- 质检项4：标准图例匹配检查（ID:304） -->
+        <check_item>
+            <name>标准图例匹配检查</name>
+            <id>304</id>
+            <severity>高</severity>
+            <rule>
+                <name>标准图例匹配检查</name>
+                <description>图层与标准图例是否一致</description>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

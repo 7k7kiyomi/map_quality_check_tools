@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--数字比例尺质检方案-->
+<check_list>
+	<scale>
+		<value></value>
+		<!-- 质检项1：比例尺数值检查（ID:402） -->
+		<check_item>
+			<name>比例尺数值检查</name>
+			<id>402</id>
+			<severity>高</severity>
+		</check_item>
+	</scale>
+</check_list>

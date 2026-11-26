@@ -1,0 +1,44 @@
+{
+    "Geopdf": {
+        "info": {
+            "completed_num": 0,
+            "err_num": 0,
+            "tasks_num": 1,
+            "uncompleted_num": 1
+        },
+        "name": "乙县",
+        "tasks": {
+            "task1": {
+                "check_item1": {
+                    "err_exist": false,
+                    "errors": {
+                    },
+                    "id": "501",
+                    "info": {
+                        "confirmed_error_count": 0,
+                        "description": "本次1个任务中，0个完成，0个失败，0个部分完成，1个未执行；不能据此判定检查通过。",
+                        "error_count": 0,
+                        "execution_summary": {
+                            "description": "本次1个任务中，0个完成，0个失败，0个部分完成，1个未执行；不能据此判定检查通过。",
+                            "error_pair_count": 0,
+                            "executed_pair_count": 0,
+                            "failed_pair_count": 0,
+                            "pair_count": 1,
+                            "partial_pair_count": 0,
+                            "skipped_pair_count": 1,
+                            "status": "未执行"
+                        },
+                        "needs_review_count": 0,
+                        "not_evaluable_count": 0,
+                        "summary": "本次1个任务中，0个完成，0个失败，0个部分完成，1个未执行；不能据此判定检查通过。"
+                    },
+                    "name": "图幅接边与系列化表达",
+                    "review_errors": {
+                    },
+                    "status": "未执行"
+                },
+                "layer_name": "道路"
+            }
+        }
+    }
+}

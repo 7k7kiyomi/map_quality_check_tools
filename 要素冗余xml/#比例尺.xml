@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--数字比例尺质检方案-->
+<check_list>
+	<scale>
+	<value></value>
+	<!--质检项_数字比例尺准确性-->
+	<check_item>
+		<name>比例尺数值检查</name>
+	</check_item>
+	</scale>
+</check_list>

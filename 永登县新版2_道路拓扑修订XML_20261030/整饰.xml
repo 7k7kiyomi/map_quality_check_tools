@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 样例图层质检方案 -->
+<check_list>
+    <scale>
+        <!-- 与比例尺无关的检查项比例尺处 value 可以为空 -->
+        <value></value>
+        <!-- 质检项1：必须图层检查（ID:301） -->
+        <check_item>
+            <name>必须图层检查</name>
+            <id>301</id>
+            <severity>高</severity>
+            <rule>
+                <name>图例完整性</name>
+                <value>图例</value>
+            </rule>
+            <rule>
+                <name>整饰完整性</name>
+                <value>整饰</value>
+            </rule>
+            <rule>
+                <name>位置图完整性</name>
+                <value>位置图</value>
+            </rule>
+            <rule>
+                <name>图名完整性检查</name>
+                <value>图名</value>
+            </rule>
+        </check_item>
+        <!-- 质检项2：制图说明检查（ID:307） -->
+        <check_item>
+            <name>制图说明检查</name>
+            <id>307</id>
+            <severity>高</severity>
+            <rule>
+                <name>字体</name>
+                <value>黑体</value>
+            </rule>
+            <rule>
+                <name>字大</name>
+                <value>6</value>
+                <unit>mm</unit>
+            </rule>
+            <rule>
+                <name>图廓颜色</name>
+                <value>CMYK(8%,0%,0%,12%)</value>
+            </rule>
+            <rule>
+                <name>制图落款位置-距离</name>
+                <value>3</value>
+                <unit>mm</unit>
+            </rule>
+            <rule>
+                <name>制图落款位置-对齐</name>
+                <value>右对齐</value>
+            </rule>
+            <rule>
+                <name>制图落款位置-排布</name>
+                <value>一行</value>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

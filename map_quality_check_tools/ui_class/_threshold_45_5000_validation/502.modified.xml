@@ -1,0 +1,162 @@
+<?xml version='1.0' encoding='utf-8'?>
+<check_list>
+    <scale>
+        <value />
+        <check_item>
+            <id>502</id>
+            <name>同系列跨比例尺表达检查</name>
+            <rule>
+                <name>series_cross_scale_tolerance_model</name>
+                <description>尺度对工程容差模型：同时计入两图的图上精度预算和类别概括预算；不是法定精度标准，须用真实对应样本校准。旧XML未配置时沿用原有米制模型。</description>
+                <value>scale_pair_v1</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_tolerance_profiles</name>
+                <description>JSON类别参数覆盖default。geometry=小图精度预算+大图精度预算+小图概括预算+配准预算，预算保守相加；position/search/expanded_search/gap分别换算，扩展候选不能绕过位置门槛。accuracy/generalization/position/search/gap为图上毫米，registration为地面米。以下均为待校准工程初值，registration=0表示未额外配置，不代表实测配准无误差。</description>
+                <value>{"default":{"small_accuracy_mm":0.1,"large_accuracy_mm":0.1,"generalization_mm":2,"registration_m":0,"position_mm":2,"search_mm":2,"expanded_search_mm":2,"gap_mm":16.666666666666668,"source":"engineering_initial_unvalidated"},"road":{"generalization_mm":2},"hydrology_line":{"generalization_mm":2},"boundary_county":{"generalization_mm":2},"boundary_township":{"generalization_mm":2},"boundary_city":{"generalization_mm":2},"boundary_province":{"generalization_mm":2}}</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_space_tolerance_mm</name>
+                <description>旧模型候选位置容差（图上毫米）；scale_pair_v1使用tolerance_profiles中的position_mm。</description>
+                <value>0.5</value><unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_candidate_search_tolerance_mm</name>
+                <description>空间索引初选范围，按图上距离换算；同稳定标识或同规范名称的语义候选可扩展到该范围之外，仍需位置与几何证据核验。</description>
+                <value>1.0</value><unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_geometry_tolerance_m</name>
+                <description>仅legacy_fixed_m旧模型使用的地面几何缓冲；scale_pair_v1忽略此值，按两侧比例尺与类别参数计算，不保留30米下限。</description>
+                <value>30</value><unit>米</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_annotation_anchor_tolerance_mm</name>
+                <description>重复同文本标注候选的空间消歧距离；唯一同文本候选可不受该距离否决，位置仅辅助重复名称消歧。</description>
+                <value>0.8</value><unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_matched_threshold</name>
+                <description>确认支撑关系所需的最低逻辑几何覆盖率；身份、类别、唯一性及显著缺段分别判定。</description>
+                <value>0.45</value><unit>0-1</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_spatial_weight</name>
+                <description>候选空间距离诊断权重。</description>
+                <value>0.60</value><unit>权重</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_geometry_weight</name>
+                <description>候选几何相似诊断权重。</description>
+                <value>0.30</value><unit>权重</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_attribute_weight</name>
+                <description>可比较业务属性诊断权重。</description>
+                <value>0.10</value><unit>权重</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_direction_angle_max</name>
+                <description>scale_pair_v1线支撑的局部切线允许夹角（不区分数字化正反向），须小于90度；按长度抽样核对方向一致覆盖率，防止宽缓冲把短交叉线误当作对应道路。legacy_fixed_m仅作诊断相似度参数。</description>
+                <value>35</value><unit>度</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_unique_score_margin</name>
+                <description>最佳候选相对次优候选的最低关系分差；明显距离优势也可确认唯一性。</description>
+                <value>0.08</value><unit>0-1</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_candidate_limit</name>
+                <description>候选数量仅用于诊断记录，不截断实际遍历。</description>
+                <value>100</value><unit>个</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_max_uncovered_segment_length_mm</name>
+                <description>最长未覆盖线段达到该图上长度时才作为显著缺段；按小比例尺换算为地面长度。</description>
+                <value>0.2</value><unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_line_join_tolerance_m</name>
+                <description>无稳定标识线段组合时允许的端点连接距离，独立于候选搜索缓冲距离。</description>
+                <value>10</value><unit>米</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_line_join_angle_max</name>
+                <description>线段端点局部切向可形成连续支撑链的最大折角；交会分支不据此合并。</description>
+                <value>75</value><unit>度</unit>
+            </rule>
+            <rule>
+                <name>series_cross_scale_semantic_classes</name>
+                <description>语义类别映射，格式为类别=图层名别名，多个别名用竖线分隔，类别之间用分号分隔。只在同一语义类别内寻找支撑。</description>
+                <value>boundary_township=乡镇级行政区界线|乡镇界线;boundary_county=县级行政区界线|县界;boundary_city=市级行政区界线|市界;boundary_province=省级行政区界线|省界;road=高速公路|国道|省道|县道|乡道|乡道_线|村道|专用公路|专用道路|专用道连接道_线;railway=高速铁路|普通铁路|铁路;settlement_seat=乡镇级驻地|县级驻地|市级驻地|省级驻地;settlement_village=自然村|行政村|村庄;well=井;spring=泉;hydrology_line=常年河|干涸河|时令河|干渠|支渠|一级河流|二级河流|三级河流|四级河流|五级河流|六级河流|水系_LineString|水崖线;hydrology_area=河流面|湖泊水库|水系面_Polygon|水域面;admin_area=乡镇级行政区面|县级行政区面</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_semantic_class_aliases_extra</name>
+                <description>补充本批 GeoPDF 中的地物及标注名称，标注继续按文字和空间位置建立对应。</description>
+                <value>settlement_seat=乡镇级驻地标注|县级驻地标注;settlement_village=自然村标注|行政村标注;road=国道代码标注|省道代码标注|高速公路代码标注|高速公路名称标注;spring=泉标注;province_area_annotation=省级表面注记标注;protected_area=自然保护区|自然保护区界线|自然保护区标注;peak=山峰|山峰名称标注|山峰高程标注;dam=拦水坝;road_access=高速出入口|高速出入口标注;historic_site=文物古迹|文物古迹标注;agricultural_land=农林牧|农林牧标注;geographic_name=地理名称标注;enclave=飞地|飞地标注;tourist_site=景点景区|旅游景点|风景名胜区|景区|景点景区标注|旅游景点标注;railway_station=火车站|铁路车站|火车站点|火车站标注</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>series_layer_name_aliases</name>
+                <description>同一业务图层在不同地图或解析版本中的名称别名；只合并语义与几何类型一致的图层。</description>
+                <value>乡镇级行政区界线=乡镇行政区界线|乡镇界线;县级行政区界线=县行政区界线|县界;乡道=乡道_线;专用公路=专用道路|专用道连接道_线;水系=水系_LineString;河流面=水系面_Polygon|水域面</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_identity_fields</name>
+                <description>稳定标识候选字段，多个字段以竖线分隔；标识缺失时可按唯一空间几何关系建立支撑。</description>
+                <value>CODE|要素编码</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_line_aggregation_classes</name>
+                <description>允许由端点唯一连接、局部走向连续且处于同一已确认语义图层的多个线要素共同支撑的类别。</description>
+                <value>road|hydrology_line|boundary_township|boundary_county|boundary_city|boundary_province</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_point_symbol_classes</name>
+                <description>按同一地图源图层内的符号实例元数据聚合绘制子路径，并比较逻辑地物锚点；页面中心值只用于归组，不直接作为地理坐标。</description>
+                <value>settlement_seat|settlement_village|well|spring|peak|road_access|historic_site|railway_station</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_polygon_aggregation_classes</name>
+                <description>允许多个面要素共同支撑一个小比例尺面对象的语义类别；默认不启用。</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_polygon_aggregation_allowed</name>
+                <description>旧版全局面聚合开关；保持关闭，由类别白名单控制。</description>
+                <value>false</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_geometry_transitions</name>
+                <description>允许的点、线、面几何类型转换，格式为point-&gt;line等；留空表示只比较同几何类型。</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_strict_missing_support_classes</name>
+                <description>只有配置此处、存在唯一稳定标识且大比例尺数据完整时，缺失支撑才自动确认错误；默认留空。</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_mandatory_retention_classes</name>
+                <description>小比例尺必须保留的类别；仅为明文配置的类别检查反向遗漏，默认留空。</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_excluded_layers</name>
+                <description>不参与地物支撑关系检查的图廓、注记辅助和装饰图层。</description>
+                <value>内图廓|图廓|接图表|公里网|注记辅助线|晕带|图例|指北针|比例尺|标题</value><unit />
+            </rule>
+            <rule>
+                <name>series_cross_scale_output_severity</name>
+                <description>结果记录的默认级别。</description>
+                <value>预警</value><unit />
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--渠流向图层质检方案-->
+<check_list>
+    <scale>
+        <value></value>
+        <!-- 质检项1：关系检查（ID:113） -->
+        <check_item>
+            <name>关系检查</name>
+            <id>113</id>
+            <severity>高</severity>
+            <rule>
+                <name>具体项</name>
+                <description>关系检查的具体项</description>
+                <value>渠流向位置检查</value>
+            </rule>
+            <rule>
+                <name>渠流向缓冲区半径</name>
+                <description>检查渠流向要素位置距离沟渠的最大图上距离</description>
+                <value>2</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>渠流向位置检查关联图层</name>
+                <description>渠流向位置检查需要关联的图层</description>
+                <value>总干渠;干渠;支渠</value>
+            </rule>
+        </check_item>
+        <!-- 质检项2：符号方向性检查（ID:209） -->
+        <check_item>
+            <id>209</id>
+            <severity>高</severity>
+            <name>符号方向性检查</name>
+            <rule>
+                <name>符号类型</name>
+                <value>渠流向</value>
+            </rule>
+            <rule>
+                <name>关联图层</name>
+                <value>总干渠;干渠;支渠</value>
+            </rule>
+            <rule>
+                <name>检查类型</name>
+                <value>平行</value>
+            </rule>
+            <rule>
+                <name>搜索半径</name>
+                <unit>毫米</unit>
+                <value>5</value>
+            </rule>
+            <rule>
+                <name>角度阈值</name>
+                <unit>度</unit>
+                <value>10</value>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

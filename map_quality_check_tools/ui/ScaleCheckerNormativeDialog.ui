@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ScaleCheckerNormativeDialogClass</class>
+ <widget class="QDialog" name="ScaleCheckerNormativeDialogClass">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>568</width>
+    <height>299</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>ScaleCheckerNormativeDialog</string>
+  </property>
+  <widget class="QLabel" name="statusLabel">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>20</y>
+     <width>441</width>
+     <height>16</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>请加载所需文件并点击检查：</string>
+   </property>
+  </widget>
+  <widget class="QGroupBox" name="groupBox">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>50</y>
+     <width>521</width>
+     <height>71</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>加载质检规则文件</string>
+   </property>
+   <widget class="QWidget" name="layoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>30</y>
+      <width>491</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout">
+     <item>
+      <widget class="QLineEdit" name="xmlFilePathEdit"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="loadXmlButton">
+       <property name="text">
+        <string>浏览</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QGroupBox" name="groupBox_2">
+   <property name="geometry">
+    <rect>
+     <x>20</x>
+     <y>130</y>
+     <width>521</width>
+     <height>81</height>
+    </rect>
+   </property>
+   <property name="title">
+    <string>加载GeoPDF文件</string>
+   </property>
+   <widget class="QWidget" name="layoutWidget">
+    <property name="geometry">
+     <rect>
+      <x>20</x>
+      <y>30</y>
+      <width>491</width>
+      <height>30</height>
+     </rect>
+    </property>
+    <layout class="QHBoxLayout" name="horizontalLayout_2">
+     <item>
+      <widget class="QLineEdit" name="geoPdfFilePathEdit"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="loadGeoPdfButton">
+       <property name="text">
+        <string>浏览</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </widget>
+  </widget>
+  <widget class="QPushButton" name="checkButton">
+   <property name="geometry">
+    <rect>
+     <x>360</x>
+     <y>230</y>
+     <width>111</width>
+     <height>28</height>
+    </rect>
+   </property>
+   <property name="text">
+    <string>检查</string>
+   </property>
+  </widget>
+ </widget>
+ <layoutdefault spacing="6" margin="11"/>
+ <resources>
+  <include location="ScaleCheckerNormativeDialog.qrc"/>
+ </resources>
+ <connections/>
+</ui>

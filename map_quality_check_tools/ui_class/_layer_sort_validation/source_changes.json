@@ -1,0 +1,170 @@
+[
+  {
+    "SideIndicator": "=>",
+    "InputObject": "#include <QCollator>"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "#include <QLocale>"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "#include <QFileInfo>"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "// Chinese names use pinyin collation independently of the host UI language."
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "// Sort only the popup proxy so existing selections keep their actual source paths."
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "class LayerNameSortFilterProxyModel final : public QSortFilterProxyModel"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    explicit LayerNameSortFilterProxyModel(QObject* parent = nullptr)"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        : QSortFilterProxyModel(parent), m_collator(QLocale(QLocale::Chinese, QLocale::China))"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        m_collator.setCaseSensitivity(Qt::CaseInsensitive);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        m_collator.setNumericMode(true);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        setDynamicSortFilter(true);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    bool lessThan(const QModelIndex& left, const QModelIndex& right) const override"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString leftPath = left.data(Qt::UserRole).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString rightPath = right.data(Qt::UserRole).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        // Keep \"未选择\" / \"不对应\" ahead of real layers."
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (leftPath.isEmpty() != rightPath.isEmpty()) return leftPath.isEmpty();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString leftName = left.data(Qt::DisplayRole).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        const QString rightName = right.data(Qt::DisplayRole).toString();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        int comparison = m_collator.compare(QFileInfo(leftName).completeBaseName(), QFileInfo(rightName).completeBaseName());"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (comparison != 0) return comparison < 0;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        comparison = m_collator.compare(leftName, rightName);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (comparison != 0) return comparison < 0;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        comparison = m_collator.compare(leftPath, rightPath);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        if (comparison != 0) return comparison < 0;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        comparison = QString::compare(leftPath, rightPath, Qt::CaseSensitive);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        return comparison != 0 ? comparison < 0 : left.row() < right.row();"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    QCollator m_collator;"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "{"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "public:"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        m_proxyModel = new LayerNameSortFilterProxyModel(this);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "        m_proxyModel->sort(modelColumn(), Qt::AscendingOrder);"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "protected:"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "private:"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": ""
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    {"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "    }"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": ""
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": "};"
+  },
+  {
+    "SideIndicator": "=>",
+    "InputObject": ""
+  },
+  {
+    "SideIndicator": "<=",
+    "InputObject": "        m_proxyModel = new QSortFilterProxyModel(this);"
+  }
+]

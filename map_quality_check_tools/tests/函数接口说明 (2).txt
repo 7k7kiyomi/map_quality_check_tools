@@ -1,0 +1,245 @@
+ReadShp 接口函数与参数说明
+================================
+
+文档版本
+- 基于当前仓库的 ReadShp_interface.h / ReadShp_interface.cpp 代码
+- 已包含接口层日志导出逻辑（exportActiveLogs）与 JSON 构造逻辑（buildJsonRootForResults）
+
+一、错误码（ReadShp_error）
+--------------------------
+enum ReadShp_error {
+    READSHP_SUCCESS = 0,            // 成功
+    READSHP_FAIL = 1,               // 运行或导出失败（例如导出 JSON 失败）
+    READSHP_INVALID_PARAM = 2,      // 入参为空（parsed/reference/xml/outShp/outJson/outLogDir 任何一个为空）
+    READSHP_FILE_NOT_FOUND = 3,     // 必须存在的文件不存在（parsed/reference/xml 中任意一个不存在）
+    READSHP_LAYER_LOAD_ERROR = 4,   // 矢量图层加载失败（QgsVectorLayer isValid() 失败）
+    READSHP_GEOMETRY_INVALID = 5    // 存在错误但导出错误 Shapefile 失败
+}
+
+触发条件（来源于 ReadShp_interface.cpp）
+- READSHP_INVALID_PARAM：validatePathsTwoLayers/OneLayer 中任一必需参数为 null。
+- READSHP_FILE_NOT_FOUND：validatePathsTwoLayers/OneLayer 检查实际文件存在性失败（parsed / reference / xml）。
+- READSHP_LAYER_LOAD_ERROR：runTwoLayerCheckAndExport / runOneLayerCheckAndExport 中实际加载矢量图层失败。
+- READSHP_GEOMETRY_INVALID：检查发现错误，但 exportErrorsToShp（导出错误要素到 Shapefile）失败。
+- READSHP_FAIL：导出 JSON 报告失败（exportResultsToJson 返回 false）。
+- READSHP_SUCCESS：流程全部完成且无上述错误。
+
+二、通用参数与目录规则
+---------------------
+编码与路径
+- 所有接口入参类型为 const char*，在实现中使用 QString::fromUtf8(...) 转换，期望 UTF-8 编码。
+- 传入的矢量图层路径由 GDAL/OGR Provider 加载（"ogr"），支持 Shapefile（.shp）及其他 OGR 支持格式（如 GeoPackage）。
+
+固定子目录推导（接口层统一规范）
+- 质检结果目录（Shapefile 输出目录）：
+  - 由 computeResultsDirFromShpParam(outShp) 推导，最终在“父目录/自身目录”下创建子目录 “质检结果”。
+  - 如果传入的是目录路径，直接在该目录下创建“质检结果”；如果是 .shp 文件路径，则在该文件的父目录下创建“质检结果”。
+
+- 质检日志目录：
+  - 由 computeLogsDirFromLogParam(outLogDir) 推导，最终在“父目录/自身目录”下创建子目录 “质检日志”。
+  - 如果传入的是目录路径，直接在该目录下创建“质检日志”；如果是文件路径，则使用该文件的父目录创建“质检日志”。
+
+- JSON 报告路径：
+  - 直接使用 szOutputJsonFilePath 作为文件路径；接口层会确保其父目录存在（MKDIR）。
+
+输出文件与内容（接口层完成）
+- Shapefile（错误要素）：
+  - 当检查存在错误时，调用 ReadShpDialog::exportErrorsToShp(outShpParent)，把错误要素导出到“质检结果”目录。
+  - 实际文件命名由内部算法决定（针对不同检查项可能导出多个文件）。
+
+- JSON 报告：
+  - 由 buildJsonRootForResults(...) 构造结构化 JSON，并写入到 szOutputJsonFilePath。
+  - JSON 结构包含四个检查项（与 UI 文案一致）：
+    * check_item1: id "112"，name "线要素拓扑检查"
+    * check_item2: id "105"，name "几何走向异常检查"
+    * check_item3: id "111"，name "面要素重叠/间隙检查"
+    * check_item4: id "109"，name "直角化角度阈值控制"
+  - 每个检查项包含字段：
+    * id: 字符串标识
+    * name: 中文名称
+    * status: 由 selected + executed 决定（"未质检" / "质检成功" / "质检失败"）
+    * err_exist: "true"/"false"（仅当 selected 且存在错误时为 "true"）
+    * info: 对象，含 summary（摘要）、error_count（错误条数）、error_types（错误类别数组）
+    * errors: 错误明细数组（当 selected 且存在错误时），字段：
+      - error_type, description, calc_value, std_value, feature_id, source_file, check_type
+  - 错误归类逻辑：
+    * 线拓扑：LINE_TOPOLOGY_ERROR 或 NETWORK_CONNECTIVITY_ERROR
+    * 几何走向：DIRECTION_ERROR
+    * 面拓扑：POLYGON_TOPOLOGY_ERROR
+    * 直角阈值：RIGHT_ANGLE_THRESHOLD_ERROR
+
+- 日志（.log）：
+  - 接口层统一调用 exportActiveLogs(...) 导出“单个日志文件”到“质检日志”目录。
+  - 文件名格式：<标准图层名>_<检查名称>.log
+    * 标准图层名来源优先级：dlg->standardLayerCombo->currentText() → lastCheckResults.front().sourceFile 基名 → "未命名图层"
+    * 检查名称（固定中文文案）：
+      - "线要素拓扑检查"
+      - "几何走向异常检查"
+      - "面要素重叠/间隙检查"
+      - "直角化角度阈值控制"
+      - 若无任何标记：使用 "通用日志"
+  - 内容：ReadShpDialog::logTextEdit 全量文本。
+  - 选择原则：
+    * 优先使用算法内部设置的执行标记 dlg->executedLineTopology / dlg->executedDirection / dlg->executedPolygon / dlg->executedRightAngle
+    * 若早期校验失败（未执行），回退使用接口层传入的选择标记（markLineTopo/markDirection/markPolygon/markRightAngle）
+    * 最终只导出一次日志文件，避免多文件重复。
+
+三、接口函数总览（C ABI 导出）
+-----------------------------
+声明（ReadShp_interface.h / extern "C"）
+1) MY_PLUGIN_API ReadShp_error checkRightAngleThreshold(
+       const char* szParsedShpFilePath,
+       const char* szReferenceShpFilePath,
+       const char* szXmlConfigPath,
+       const char* szOutputProblemShpFilePath,
+       const char* szOutputJsonFilePath,
+       const char* szOutputLogFolderPath,
+       int scale);
+
+2) MY_PLUGIN_API ReadShp_error checkPolygonOverlapGap(
+       const char* szParsedShpFilePath,
+       const char* szXmlConfigPath,
+       const char* szOutputProblemShpFilePath,
+       const char* szOutputJsonFilePath,
+       const char* szOutputLogFolderPath,
+       int scale);
+
+3) MY_PLUGIN_API ReadShp_error checkLineTopology(
+       const char* szParsedShpFilePath,
+       const char* szReferenceShpFilePath,
+       const char* szXmlConfigPath,
+       const char* szOutputProblemShpFilePath,
+       const char* szOutputJsonFilePath,
+       const char* szOutputLogFolderPath,
+       int scale);
+
+4) MY_PLUGIN_API ReadShp_error checkWaterSystemDirection(
+       const char* szParsedShpFilePath,
+       const char* szReferenceShpFilePath,
+       const char* szXmlConfigPath,
+       const char* szOutputProblemShpFilePath,
+       const char* szOutputJsonFilePath,
+       const char* szOutputLogFolderPath,
+       int scale);
+
+四、各接口函数详细说明
+----------------------
+
+1) checkRightAngleThreshold（直角化角度阈值控制检查）
+- 功能：对线要素进行“直角化角度阈值控制”相关的质量检查（需要两图层：解析图层 + 参考图层）。
+- 参数：
+  * szParsedShpFilePath：解析图层路径（SHP/GeoPackage 等 OGR 支持格式）；必须存在。
+  * szReferenceShpFilePath：参考图层路径；必须存在。
+  * szXmlConfigPath：XML 配置文件路径；必须存在，用于 ReadShpDialog::loadConfigFromXML、updateParametersFromConfig。
+  * szOutputProblemShpFilePath：用于推导“质检结果”目录（支持传目录或 .shp 文件路径）。
+  * szOutputJsonFilePath：JSON 报告输出路径（直接写入该文件，父目录自动创建）。
+  * szOutputLogFolderPath：用于推导“质检日志”目录（支持传目录或文件路径）。
+  * scale：地图比例尺，设置到 ReadShpDialog::m_mapScale。
+- 返回值：
+  * 校验失败：READSHP_INVALID_PARAM / READSHP_FILE_NOT_FOUND（并导出空结果 JSON 与一次日志）。
+  * 加载图层失败：READSHP_LAYER_LOAD_ERROR。
+  * 导出错误 Shapefile 失败：READSHP_GEOMETRY_INVALID。
+  * 导出 JSON 失败：READSHP_FAIL。
+  * 成功：READSHP_SUCCESS。
+- 输出与日志：
+  * 有错误时导出错误要素到“质检结果”目录。
+  * 始终导出一次日志到“质检日志”，优先取 executedRightAngle；若未执行，则使用 markRightAngle=true。
+  * JSON 的 check_item4（id "109"）使用 selected/ executed 与错误数组构造摘要。
+
+2) checkPolygonOverlapGap（面要素重叠/间隙检查）
+- 功能：对面要素进行“重叠/间隙”检查（单图层）。
+- 参数：
+  * szParsedShpFilePath：解析图层路径；必须存在。
+  * szXmlConfigPath：XML 配置文件路径；必须存在。
+  * szOutputProblemShpFilePath：推导“质检结果”目录。
+  * szOutputJsonFilePath：JSON 报告输出路径。
+  * szOutputLogFolderPath：推导“质检日志”目录。
+  * scale：地图比例尺。
+- 返回值：同上（单图层版本）。
+- 输出与日志：
+  * 有错误时导出错误要素到“质检结果”目录。
+  * 始终导出一次日志，优先取 executedPolygon；未执行则使用 markPolygon=true。
+  * JSON 的 check_item3（id "111"）记录此检查项。
+
+3) checkLineTopology（线要素拓扑检查）
+- 功能：对线要素进行拓扑检查（需要两图层：解析图层 + 参考图层）。
+- 特殊逻辑（来自 ReadShp_interface.cpp）：
+  * 若解析图层是道路（isRoadFile），调用 dlg->checkRoadLineTopology。
+  * 若解析图层是河流（isRiverFile），先调用 dlg->checkRiverLineTopology，再调用 dlg->checkRiverNetworkConnectivity，并将两者结果合并。
+- 参数：
+  * szParsedShpFilePath：解析图层路径；必须存在。
+  * szReferenceShpFilePath：参考图层路径；必须存在。
+  * szXmlConfigPath：XML 配置文件路径；必须存在。
+  * szOutputProblemShpFilePath：推导“质检结果”目录。
+  * szOutputJsonFilePath：JSON 报告输出路径。
+  * szOutputLogFolderPath：推导“质检日志”目录。
+  * scale：地图比例尺。
+- 返回值：同两图层版本。
+- 输出与日志：
+  * 有错误时导出错误要素到“质检结果”目录。
+  * 始终导出一次日志，优先取 executedLineTopology；未执行则 markLineTopo=true。
+  * JSON 的 check_item1（id "112"）记录此检查项；错误包含两类：LINE_TOPOLOGY_ERROR / NETWORK_CONNECTIVITY_ERROR。
+
+4) checkWaterSystemDirection（几何走向异常检查）
+- 功能：对线要素进行“几何走向异常”检查（需要两图层：解析图层 + 参考图层）。
+- 参数：
+  * szParsedShpFilePath：解析图层路径；必须存在。
+  * szReferenceShpFilePath：参考图层路径；必须存在。
+  * szXmlConfigPath：XML 配置文件路径；必须存在。
+  * szOutputProblemShpFilePath：推导“质检结果”目录。
+  * szOutputJsonFilePath：JSON 报告输出路径。
+  * szOutputLogFolderPath：推导“质检日志”目录。
+  * scale：地图比例尺。
+- 返回值：同两图层版本。
+- 输出与日志：
+  * 有错误时导出错误要素到“质检结果”目录。
+  * 始终导出一次日志，优先取 executedDirection；未执行则 markDirection=true。
+  * JSON 的 check_item2（id "105"）记录此检查项。
+
+五、接口调用流程（统一说明）
+----------------------------
+1) 参数校验（validatePathsTwoLayers/OneLayer）：
+   - 校验入参是否为空。
+   - 校验必须存在的文件：parsed / reference（两图层） / xml。
+   - 推导创建固定子目录：“质检结果”“质检日志”，并创建 JSON 父目录。
+
+2) 校验失败时（exportStatusOnValidationFailure）：
+   - 生成空结果的 JSON（错误数组为空，executed* 全 false，selected* 来自接口层选择标记）。
+   - 导出一次日志（使用 mark* 标志选择对应检查名称）。
+
+3) 加载图层并执行检查（runTwoLayerCheckAndExport / runOneLayerCheckAndExport）：
+   - 设置 ReadShpDialog 的配置路径与比例尺，加载配置，重置执行标记。
+   - 加载解析/参考图层（使用 OGR Provider）。
+   - 执行传入的检查函数（checkFn），得到 std::vector<QualityCheckResult>。
+   - 若存在错误，导出 Shapefile 到“质检结果”目录。
+   - 构造并导出 JSON（包含四个检查项的状态与错误明细）。
+   - 始终导出一次日志（优先使用 executed*，否则回退到 mark*）。
+
+六、路径传参示例与建议
+----------------------
+- szOutputProblemShpFilePath 支持两种传法：
+  * 传目录：例如 "D:\out\projectA" → 实际使用 "D:\out\projectA\质检结果"
+  * 传文件：例如 "D:\out\projectA\error.shp" → 实际使用 "D:\out\projectA\质检结果"
+- szOutputLogFolderPath 支持两种传法：
+  * 传目录：例如 "D:\out\projectA" → 实际使用 "D:\out\projectA\质检日志"
+  * 传文件：例如 "D:\out\projectA\topo.log" → 实际使用 "D:\out\projectA\质检日志"
+- szOutputJsonFilePath：直接输出 JSON 文件到该路径，父目录自动创建。
+
+七、算法中使用的图层
+1）直角化角度阈值检查：水系和行政区划的线面要素。测试中使用的标准图层是一级河流、二级河流、三级河流、四级河流、五级河流、六级河流、等外河流、时令河（对应的实际图层是水系_LineString）、行政区划面普色（对应的实际图层是行政区划面普色）
+2）走向错误检查：水系和沟渠要素。测试中使用的标准图层是一级河流、二级河流、三级河流、四级河流、五级河流、六级河流、等外河流、时令河（对应的实际图层是水系_LineString）、总干渠、干渠、支渠（对应的实际图层是沟渠）
+3）线要素拓扑检查：道路和河流。测试中使用的图层是一级河流、二级河流、三级河流、四级河流、五级河流、六级河流、等外河流、时令河（对应的实际图层是水系_LineString）、井、泉、水库（对应实际图层是点状水库）、拦河坝（对应实际图层是拦水坝）、湖泊水库面、河流面（对应的实际图层是水系面_Polygon）、高速公路、快速路、国道、省道、县道、乡道、连接道
+4）面要素重叠/间隙检查：行政区划面要素。测试中使用的图层是行政
+
+八、注意事项
+------------
+- 所有路径按 UTF-8 解析；务必保证编码一致性。
+- 必须存在的文件：解析图层、参考图层（两图层函数）、XML 配置。
+- scale 会设置到 ReadShpDialog::m_mapScale，影响内部算法参数（具体作用由 ReadShpDialog 实现决定）。
+- 日志导出现在统一为“单个文件”，避免同时导出多个冗余日志：
+  * 优先依据算法执行标记（executed*），其次依据接口层选择标记（mark*）。
+- JSON 报告的 "status" 与 "err_exist" 分别表示执行状态与是否存在错误，两者独立：
+  * "status" 不由错误是否存在决定，仅由 selected + executed 决定。
+  * "err_exist" 仅当 selected 且存在错误时为 "true"。
+
+（完）

@@ -1,0 +1,52 @@
+{
+  "target": "D:\\Desktop\\LTZK\\图幅接边与跨比例尺检查\\502同系列跨比例尺表达检查.xml",
+  "backup": "F:\\map_quality_check_tools---20160108\\map_quality_check_tools\\ui_class\\_threshold_validation\\502.before.xml",
+  "prepared": "F:\\map_quality_check_tools---20160108\\map_quality_check_tools\\ui_class\\_threshold_validation\\502.modified.xml",
+  "original_sha256": "26BEB5850A836714ABD23312F13B4CAA96AADD5209B4230495954CE04FB554D6",
+  "modified_sha256": "D7B1B117EEA66AA3F217990EA2A9D06575F8BD777AC279E25604FBC0D1089D02",
+  "changed_rules": [
+    "series_cross_scale_tolerance_profiles",
+    "series_cross_scale_annotation_anchor_tolerance_mm",
+    "series_cross_scale_matched_threshold",
+    "series_cross_scale_direction_angle_max",
+    "series_cross_scale_line_join_tolerance_m"
+  ],
+  "profiles": {
+    "default": {
+      "small_accuracy_mm": 0.1,
+      "large_accuracy_mm": 0.1,
+      "generalization_mm": 2,
+      "registration_m": 0,
+      "position_mm": 2,
+      "search_mm": 2,
+      "expanded_search_mm": 2,
+      "gap_mm": 1,
+      "source": "engineering_initial_unvalidated"
+    },
+    "road": {
+      "generalization_mm": 2
+    },
+    "hydrology_line": {
+      "generalization_mm": 2
+    },
+    "boundary_county": {
+      "generalization_mm": 2
+    },
+    "boundary_township": {
+      "generalization_mm": 2
+    },
+    "boundary_city": {
+      "generalization_mm": 2
+    },
+    "boundary_province": {
+      "generalization_mm": 2
+    }
+  },
+  "scalar_changes": {
+    "series_cross_scale_line_join_tolerance_m": "10",
+    "series_cross_scale_annotation_anchor_tolerance_mm": "0.8",
+    "series_cross_scale_direction_angle_max": "35",
+    "series_cross_scale_matched_threshold": "0.68"
+  },
+  "validation": "PASS: XML, JSON, all class overrides, budget order, unchanged unrelated rules"
+}

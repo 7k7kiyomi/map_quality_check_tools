@@ -1,0 +1,44 @@
+{
+    "Geopdf": {
+        "info": {
+            "completed_num": 1,
+            "err_num": 0,
+            "tasks_num": 1,
+            "uncompleted_num": 0
+        },
+        "name": "甲县",
+        "tasks": {
+            "task1": {
+                "check_item1": {
+                    "err_exist": false,
+                    "errors": {
+                    },
+                    "id": "501",
+                    "info": {
+                        "confirmed_error_count": 0,
+                        "description": "未发现图幅接边与系列化表达检查错误。",
+                        "error_count": 0,
+                        "execution_summary": {
+                            "description": "",
+                            "error_pair_count": 0,
+                            "executed_pair_count": 0,
+                            "failed_pair_count": 0,
+                            "pair_count": 0,
+                            "partial_pair_count": 0,
+                            "skipped_pair_count": 0,
+                            "status": "质检成功"
+                        },
+                        "needs_review_count": 0,
+                        "not_evaluable_count": 0,
+                        "summary": "未发现图幅接边与系列化表达检查错误。"
+                    },
+                    "name": "图幅接边与系列化表达",
+                    "review_errors": {
+                    },
+                    "status": "质检成功"
+                },
+                "layer_name": "道路"
+            }
+        }
+    }
+}

@@ -1,0 +1,91 @@
+{
+    "check_item1": {
+        "err_exist": false,
+        "errors": {
+        },
+        "id": "502",
+        "info": {
+            "auto_confirmed_count": 0,
+            "auto_loaded_layer_count": 0,
+            "confirmed_error_output_count": 0,
+            "description": "确认错误 0 条，待复核 0 条，不可评估 0 条。",
+            "error_count": 0,
+            "error_line_count": 0,
+            "error_line_shp": "",
+            "error_link_count": 0,
+            "error_link_shp": "",
+            "error_point_count": 0,
+            "error_point_shp": "",
+            "error_polygon_count": 0,
+            "error_polygon_shp": "",
+            "execution_records": [
+                {
+                    "check_crs": "PROJCS[\"WGS 84 / Pseudo-Mercator\",GEOGCS[\"WGS 84\",DATUM[\"WGS_1984\",SPHEROID[\"WGS 84\",6378137,298.257223563,AUTHORITY[\"EPSG\",\"7030\"]],AUTHORITY[\"EPSG\",\"6326\"]],PRIMEM[\"Greenwich\",0,AUTHORITY[\"EPSG\",\"8901\"]],UNIT[\"degree\",0.0174532925199433,AUTHORITY[\"EPSG\",\"9122\"]],AUTHORITY[\"EPSG\",\"4326\"]],PROJECTION[\"Mercator_1SP\"],PARAMETER[\"central_meridian\",0],PARAMETER[\"scale_factor\",1],PARAMETER[\"false_easting\",0],PARAMETER[\"false_northing\",0],UNIT[\"metre\",1,AUTHORITY[\"EPSG\",\"9001\"]],AXIS[\"Easting\",EAST],AXIS[\"Northing\",NORTH],EXTENSION[\"PROJ4\",\"+proj=merc +a=6378137 +b=6378137 +lat_ts=0 +lon_0=0 +x_0=0 +y_0=0 +k=1 +units=m +nadgrids=@null +wktext +no_defs\"],AUTHORITY[\"EPSG\",\"3857\"]]",
+                    "execution_state": "completed",
+                    "large_scale": 110000,
+                    "large_scale_map": "甲县",
+                    "pair_name": "甲县—乙县",
+                    "small_scale": 300000,
+                    "small_scale_map": "乙县",
+                    "target_layer": "道路"
+                }
+            ],
+            "execution_state": "completed",
+            "final_error_count": 0,
+            "layer_loading_failures": [
+            ],
+            "log_path": "F:/map_quality_check_tools---20160108/map_quality_check_tools/ui_class/_output_loading_validation/run_20261105_214954_454/502/乙县/质检日志/同系列跨比例尺表达检查.log",
+            "needs_review_count": 0,
+            "needs_review_output_count": 0,
+            "not_evaluable_count": 0,
+            "output_diagnostics": [
+            ],
+            "output_failure_count": 0,
+            "output_warning_count": 0,
+            "result_field_guide": {
+                "advice": "需要核对的内容",
+                "cov_min": "最低覆盖要求(%)",
+                "cov_pct": "支撑覆盖率(%)",
+                "desc": "实际发现与触发条件",
+                "dir_cov": "局部方向一致覆盖率(%)",
+                "dir_deg": "局部方向允许夹角(度)",
+                "dist_m": "候选最近距离(米)",
+                "err_id": "详细证据记录编号",
+                "err_type": "内部情况代码",
+                "gap_lim": "连续缺段限值(米)",
+                "gap_m": "最长连续未支撑段(米)",
+                "geom_tol": "几何支撑缓冲(米)",
+                "issue": "发现情况",
+                "lg_fid": "大图候选要素FID",
+                "lg_layer": "确认的大图对应图层",
+                "lg_map": "大比例尺支撑地图",
+                "lg_mm": "初选范围折合大图(毫米)",
+                "lg_scale": "大图比例尺",
+                "liability": "错误归属判断",
+                "mark_side": "结果几何标记来源",
+                "pos_lim": "位置接受/标注消歧容差(米)",
+                "result": "复核状态",
+                "search_ext": "扩展初选范围(米)",
+                "search_m": "空间初选范围(米)",
+                "sm_fid": "小图源要素FID",
+                "sm_layer": "小图源图层",
+                "sm_map": "小比例尺检查地图",
+                "sm_mm": "初选范围折合小图(毫米)",
+                "sm_scale": "小图比例尺",
+                "status": "内部状态代码",
+                "tol_class": "容差使用的业务类别",
+                "tol_model": "容差计算方式",
+                "tol_src": "容差参数来源"
+            },
+            "result_geometry_role": "标记来源用于定位检查对象；待复核记录不据此确定错误归属。空指标表示未计算或不适用。",
+            "result_schema_version": 3,
+            "result_shp": "",
+            "summary": "确认错误 0 条，待复核 0 条，不可评估 0 条。"
+        },
+        "name": "同系列跨比例尺表达检查",
+        "review_errors": {
+        },
+        "severity": "未配置",
+        "status": "质检成功"
+    }
+}

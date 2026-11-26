@@ -1,0 +1,512 @@
+[
+  {
+    "name": "#图名.xml",
+    "changed": false,
+    "original_sha256": "1dca9be1aef0ddefbf95635a05f422c598de713627490ff42117d759ddfb56db",
+    "copy_sha256": "1dca9be1aef0ddefbf95635a05f422c598de713627490ff42117d759ddfb56db"
+  },
+  {
+    "name": "#投影.xml",
+    "changed": false,
+    "original_sha256": "be9dfcde4fda58d4bffabca9b10982f26be766f3225addb266f14fdc6838db43",
+    "copy_sha256": "be9dfcde4fda58d4bffabca9b10982f26be766f3225addb266f14fdc6838db43"
+  },
+  {
+    "name": "#比例尺.xml",
+    "changed": false,
+    "original_sha256": "fef9b6bbf23ee6889570e0319715973b2cc96ecfdea7da173894e6dc378249bf",
+    "copy_sha256": "fef9b6bbf23ee6889570e0319715973b2cc96ecfdea7da173894e6dc378249bf"
+  },
+  {
+    "name": "3A景点景区_标注.xml",
+    "changed": false,
+    "original_sha256": "288c13e050faffaec15abc20dd4e17924b5425f65780e7fcc26403185b31ea5e",
+    "copy_sha256": "288c13e050faffaec15abc20dd4e17924b5425f65780e7fcc26403185b31ea5e"
+  },
+  {
+    "name": "3A级景点景区.xml",
+    "changed": false,
+    "original_sha256": "dd24e1cfe5d7ae79738f4ea451e82753e2457151f1d1e036889a0ef575622a65",
+    "copy_sha256": "dd24e1cfe5d7ae79738f4ea451e82753e2457151f1d1e036889a0ef575622a65"
+  },
+  {
+    "name": "4A景点景区_标注.xml",
+    "changed": false,
+    "original_sha256": "2ccaeca7d9088c33232d7d0a00f05e402b5fe82cf60cf38ef69e264487b4d200",
+    "copy_sha256": "2ccaeca7d9088c33232d7d0a00f05e402b5fe82cf60cf38ef69e264487b4d200"
+  },
+  {
+    "name": "4A级景点景区.xml",
+    "changed": false,
+    "original_sha256": "6e7f82397f3aa5db902085e67e55e18a35402fcbf1602646c664cf41928ea263",
+    "copy_sha256": "6e7f82397f3aa5db902085e67e55e18a35402fcbf1602646c664cf41928ea263"
+  },
+  {
+    "name": "三级山脉_标注.xml",
+    "changed": false,
+    "original_sha256": "fed9e08046b4904140e358e17c7572ecca447d03418f2813ade7f934136b7adf",
+    "copy_sha256": "fed9e08046b4904140e358e17c7572ecca447d03418f2813ade7f934136b7adf"
+  },
+  {
+    "name": "三级河流.xml",
+    "changed": false,
+    "original_sha256": "d2bd680843276ce729d16ce493c62fd5e7b7789e831ae97be173b56595ba4ef8",
+    "copy_sha256": "d2bd680843276ce729d16ce493c62fd5e7b7789e831ae97be173b56595ba4ef8"
+  },
+  {
+    "name": "三级河流_标注.xml",
+    "changed": false,
+    "original_sha256": "bac43b66d05b5a009016421d8d82d2bf474afd5da233c07635ffe0f934fbcc84",
+    "copy_sha256": "bac43b66d05b5a009016421d8d82d2bf474afd5da233c07635ffe0f934fbcc84"
+  },
+  {
+    "name": "专用公路.xml",
+    "changed": true,
+    "original_sha256": "99dc763f67289b7b1eee49cf608658619ebbeacb88cfc3244908242e2077670c",
+    "copy_sha256": "38f024b62e7233d70b29f856819142721060c64b746387f6f4383b6ff4fe2d92"
+  },
+  {
+    "name": "乡道.xml",
+    "changed": true,
+    "original_sha256": "d0a174a18587a0fbb2de23c24b533a0d67523abb3d7709135a7e86fbebf67db9",
+    "copy_sha256": "d86d3054be5907f6ccbbec10bcc0af5af5e285530a83c6265cc9eedda6b8f3ef"
+  },
+  {
+    "name": "乡镇级行政区界线.xml",
+    "changed": false,
+    "original_sha256": "bc3f62dc88a5194debe3bab92e44b70ac44d6187f820a7442c20d5c36fbd43fe",
+    "copy_sha256": "bc3f62dc88a5194debe3bab92e44b70ac44d6187f820a7442c20d5c36fbd43fe"
+  },
+  {
+    "name": "乡镇级表面注记_标注.xml",
+    "changed": false,
+    "original_sha256": "f6fa6fe882afd77156979463db9ba69639dda80622531a1314ca21260a8c08d6",
+    "copy_sha256": "f6fa6fe882afd77156979463db9ba69639dda80622531a1314ca21260a8c08d6"
+  },
+  {
+    "name": "乡镇级驻地.xml",
+    "changed": false,
+    "original_sha256": "c0787a2a83815489701d6a15e66cae85314d5d976d19c68758cd55b5df27da76",
+    "copy_sha256": "c0787a2a83815489701d6a15e66cae85314d5d976d19c68758cd55b5df27da76"
+  },
+  {
+    "name": "乡镇级驻地_标注.xml",
+    "changed": false,
+    "original_sha256": "3f9c49a1b27f6d33af89758aab6d54163fb8b6f931544ea5a54aa189e3f245a4",
+    "copy_sha256": "3f9c49a1b27f6d33af89758aab6d54163fb8b6f931544ea5a54aa189e3f245a4"
+  },
+  {
+    "name": "二级山脉_标注.xml",
+    "changed": false,
+    "original_sha256": "4082fbc10cc48d8e8c605015ec4dc4eb09416ed01de4153484c6123eb38d9a0f",
+    "copy_sha256": "4082fbc10cc48d8e8c605015ec4dc4eb09416ed01de4153484c6123eb38d9a0f"
+  },
+  {
+    "name": "井.xml",
+    "changed": false,
+    "original_sha256": "e60c1e3ece7d01d5e979380e71876b4049465061f190e3beb8c73765fcd537c2",
+    "copy_sha256": "e60c1e3ece7d01d5e979380e71876b4049465061f190e3beb8c73765fcd537c2"
+  },
+  {
+    "name": "井_标注.xml",
+    "changed": false,
+    "original_sha256": "9e0d29662e25b5aa1b364ec8b856d36d3abd7f6c1774d5068c0d77b08ab885e5",
+    "copy_sha256": "9e0d29662e25b5aa1b364ec8b856d36d3abd7f6c1774d5068c0d77b08ab885e5"
+  },
+  {
+    "name": "全局重叠检查.xml",
+    "changed": false,
+    "original_sha256": "411e6713897c15860c298646a26f118d6d8f215dd4c1b782eff59f54b269eea5",
+    "copy_sha256": "411e6713897c15860c298646a26f118d6d8f215dd4c1b782eff59f54b269eea5"
+  },
+  {
+    "name": "公路隧道.xml",
+    "changed": true,
+    "original_sha256": "2d5df2a35e7d1685890cc74694408e2973444d48cba0bfdf0819e946a118c9eb",
+    "copy_sha256": "7e914de93a98cbeffef18a969a6ff5e81a5cbd462412650cf5b145c686ba0551"
+  },
+  {
+    "name": "六级河流.xml",
+    "changed": false,
+    "original_sha256": "4d16f87282ce18976ed15879954bc7cad6ff0ad7ddbcb9d59c273eeaf7f3fe4a",
+    "copy_sha256": "4d16f87282ce18976ed15879954bc7cad6ff0ad7ddbcb9d59c273eeaf7f3fe4a"
+  },
+  {
+    "name": "六级河流_标注.xml",
+    "changed": false,
+    "original_sha256": "194fdb15dfe57fdde05d6da252df76f6c4428ac6945db4c6dd7f1031b247225f",
+    "copy_sha256": "194fdb15dfe57fdde05d6da252df76f6c4428ac6945db4c6dd7f1031b247225f"
+  },
+  {
+    "name": "县级行政区界线.xml",
+    "changed": false,
+    "original_sha256": "84809ac3398ca23f30f7cf69eb0ee9212dd063243473cfbbcecce385cb54da59",
+    "copy_sha256": "84809ac3398ca23f30f7cf69eb0ee9212dd063243473cfbbcecce385cb54da59"
+  },
+  {
+    "name": "县级表面注记_标注.xml",
+    "changed": false,
+    "original_sha256": "76ba51efe9572fff94a071e4cf41808668c97d4309aa73b2cff61bf78274292f",
+    "copy_sha256": "76ba51efe9572fff94a071e4cf41808668c97d4309aa73b2cff61bf78274292f"
+  },
+  {
+    "name": "县级驻地.xml",
+    "changed": false,
+    "original_sha256": "041adccd940a62eeabde00d85d3622ce0562fd2b9fb0e3c2ad25fb430afc9ec7",
+    "copy_sha256": "041adccd940a62eeabde00d85d3622ce0562fd2b9fb0e3c2ad25fb430afc9ec7"
+  },
+  {
+    "name": "县级驻地_标注.xml",
+    "changed": false,
+    "original_sha256": "905c8e9004f4b3c1e011a45ae7da273ca284b3d852bb75613039eb81f27619ec",
+    "copy_sha256": "905c8e9004f4b3c1e011a45ae7da273ca284b3d852bb75613039eb81f27619ec"
+  },
+  {
+    "name": "县道.xml",
+    "changed": true,
+    "original_sha256": "d38929ab4a213c85fc85c00903a19b38618be96f593837494dca965a1cecc078",
+    "copy_sha256": "c7b7fe7eb76a3cd7381b57e5e420a4f945457febf28e653acb4672907c7d6b2e"
+  },
+  {
+    "name": "县道_代码标注.xml",
+    "changed": false,
+    "original_sha256": "fe991a58f60653bd0948a3b704d058ab8ef5272d49ae1dff51d669496556e066",
+    "copy_sha256": "fe991a58f60653bd0948a3b704d058ab8ef5272d49ae1dff51d669496556e066"
+  },
+  {
+    "name": "国界线.xml",
+    "changed": false,
+    "original_sha256": "3fabe2144f96f86372727c4dfeae7335603adf3e8cea8d6871fd34a0a736157a",
+    "copy_sha256": "3fabe2144f96f86372727c4dfeae7335603adf3e8cea8d6871fd34a0a736157a"
+  },
+  {
+    "name": "国道.xml",
+    "changed": true,
+    "original_sha256": "33e93609db4260a5bec8f87f7d770ad01f8a635eae71dc568368e06e78c0811c",
+    "copy_sha256": "a2e6b99d1a4b69de9914658605b7d28c16e00441e8a3198347bffc4b5326cb45"
+  },
+  {
+    "name": "国道_代码标注.xml",
+    "changed": false,
+    "original_sha256": "514d0fe37e5672a9c23469b4dcdfa4794852cf0bac09c43324235053aca1c6c6",
+    "copy_sha256": "514d0fe37e5672a9c23469b4dcdfa4794852cf0bac09c43324235053aca1c6c6"
+  },
+  {
+    "name": "在建高速公路.xml",
+    "changed": false,
+    "original_sha256": "37711df58dfadba1a910b015f2e72cc1e8aa9e14d356adc758aa30a4488280ba",
+    "copy_sha256": "37711df58dfadba1a910b015f2e72cc1e8aa9e14d356adc758aa30a4488280ba"
+  },
+  {
+    "name": "在建高速铁路.xml",
+    "changed": false,
+    "original_sha256": "5ecbbd5771db9d4c8c4cf2afe24e3b1240de9c154e881dabedb0bac2c0110c04",
+    "copy_sha256": "5ecbbd5771db9d4c8c4cf2afe24e3b1240de9c154e881dabedb0bac2c0110c04"
+  },
+  {
+    "name": "地理名称_标注.xml",
+    "changed": false,
+    "original_sha256": "a772ede2f620c55f24e13d69e2947afbcc02e933d114c4d36e4a73fe15cab57b",
+    "copy_sha256": "a772ede2f620c55f24e13d69e2947afbcc02e933d114c4d36e4a73fe15cab57b"
+  },
+  {
+    "name": "太子山莲花山界线.xml",
+    "changed": false,
+    "original_sha256": "723726236905e6685355ac80b5d167d1495d8931a672b3eeca36fc9c2a2ab071",
+    "copy_sha256": "723726236905e6685355ac80b5d167d1495d8931a672b3eeca36fc9c2a2ab071"
+  },
+  {
+    "name": "市级驻地.xml",
+    "changed": false,
+    "original_sha256": "6105e22ea3b43883320a19b0159cbe2fad5991cb505f8ebae4f58c180b90de16",
+    "copy_sha256": "6105e22ea3b43883320a19b0159cbe2fad5991cb505f8ebae4f58c180b90de16"
+  },
+  {
+    "name": "干渠.xml",
+    "changed": false,
+    "original_sha256": "e215303f811400175029ce5be3fe137b1c1037981c05d1fe2cbaa81d20a1c1dc",
+    "copy_sha256": "e215303f811400175029ce5be3fe137b1c1037981c05d1fe2cbaa81d20a1c1dc"
+  },
+  {
+    "name": "干渠_标注.xml",
+    "changed": false,
+    "original_sha256": "b9274fb125dd5466d1183688f7b36c8ca45098b370cab56ff81b1ba2c5987382",
+    "copy_sha256": "b9274fb125dd5466d1183688f7b36c8ca45098b370cab56ff81b1ba2c5987382"
+  },
+  {
+    "name": "快速路.xml",
+    "changed": true,
+    "original_sha256": "50ef9759d96a5040fe8863bbe474d2426a2c2480a62c7a81725d8405b99a52b8",
+    "copy_sha256": "e479014e05be11ace7c381ccaaa867729b7ee7a59c0476d3fe0bc48af6244734"
+  },
+  {
+    "name": "拦河坝.xml",
+    "changed": false,
+    "original_sha256": "cdb7e3ace157123a91f3e68b44868eb3a2b2c75f6ea6c7aab49bb3c9c905d6e6",
+    "copy_sha256": "cdb7e3ace157123a91f3e68b44868eb3a2b2c75f6ea6c7aab49bb3c9c905d6e6"
+  },
+  {
+    "name": "支渠.xml",
+    "changed": false,
+    "original_sha256": "1939ff22f5a820c85f41bbdda64b88f50bc5aaa4db83368ae60fbcb7935b48c7",
+    "copy_sha256": "1939ff22f5a820c85f41bbdda64b88f50bc5aaa4db83368ae60fbcb7935b48c7"
+  },
+  {
+    "name": "支渠_标注.xml",
+    "changed": false,
+    "original_sha256": "5d2466c3af0071f762162b81083f6b33d42038be988bb90a720ad735c950c97a",
+    "copy_sha256": "5d2466c3af0071f762162b81083f6b33d42038be988bb90a720ad735c950c97a"
+  },
+  {
+    "name": "整饰.xml",
+    "changed": false,
+    "original_sha256": "daf156a1bdcbfafe501a346a49e796248ac09aafbb8a35be0e96d99b86319e68",
+    "copy_sha256": "daf156a1bdcbfafe501a346a49e796248ac09aafbb8a35be0e96d99b86319e68"
+  },
+  {
+    "name": "晕带.xml",
+    "changed": false,
+    "original_sha256": "38c350a38fe818f309a20370fa1f75553cb7509b5f9a96968e6e4307165b7968",
+    "copy_sha256": "38c350a38fe818f309a20370fa1f75553cb7509b5f9a96968e6e4307165b7968"
+  },
+  {
+    "name": "普通铁路.xml",
+    "changed": false,
+    "original_sha256": "3fb4b1914d3e6534924b55cbd13f9b268b39b6bba18aa3faf8359708774b27f9",
+    "copy_sha256": "3fb4b1914d3e6534924b55cbd13f9b268b39b6bba18aa3faf8359708774b27f9"
+  },
+  {
+    "name": "村道.xml",
+    "changed": true,
+    "original_sha256": "8decb80d97c089119c46f183131393b96d1c0983decd583ca365d7c4f78eeb9c",
+    "copy_sha256": "d058490524de5447faf3e0d87a96b67d9c18ec5f2e5faf30d1c79890cf1fa717"
+  },
+  {
+    "name": "桥梁.xml",
+    "changed": false,
+    "original_sha256": "2ef622b8d6a2d7e1bdc16652ce9863e1bf79baebfc2b2949984611a7abfa08bf",
+    "copy_sha256": "2ef622b8d6a2d7e1bdc16652ce9863e1bf79baebfc2b2949984611a7abfa08bf"
+  },
+  {
+    "name": "水库.xml",
+    "changed": false,
+    "original_sha256": "04c2790b31efde8f81fd5081746e961eceae9a9390a24122b9a0cccc3c0cb54a",
+    "copy_sha256": "04c2790b31efde8f81fd5081746e961eceae9a9390a24122b9a0cccc3c0cb54a"
+  },
+  {
+    "name": "水库_标注.xml",
+    "changed": false,
+    "original_sha256": "342b0d285d8d209505d3cd4035b9b3acf78386288217a64f5b81b06f32db5a7d",
+    "copy_sha256": "342b0d285d8d209505d3cd4035b9b3acf78386288217a64f5b81b06f32db5a7d"
+  },
+  {
+    "name": "泉.xml",
+    "changed": false,
+    "original_sha256": "434405dab1d19dc81dd4dfbde679e78e4583c2e0f2800002a020d384b73cb727",
+    "copy_sha256": "434405dab1d19dc81dd4dfbde679e78e4583c2e0f2800002a020d384b73cb727"
+  },
+  {
+    "name": "泉_标注.xml",
+    "changed": false,
+    "original_sha256": "a2ba9815861d844829d1a3cb41a243cc3e1c3fc2a472ec696507d0700b766cd2",
+    "copy_sha256": "a2ba9815861d844829d1a3cb41a243cc3e1c3fc2a472ec696507d0700b766cd2"
+  },
+  {
+    "name": "渠流向.xml",
+    "changed": false,
+    "original_sha256": "a00de4bd38b874e654b96f9c1a643bd43d9de516332c5208b7a76ef20971691c",
+    "copy_sha256": "a00de4bd38b874e654b96f9c1a643bd43d9de516332c5208b7a76ef20971691c"
+  },
+  {
+    "name": "湖泊水库面.xml",
+    "changed": false,
+    "original_sha256": "40760531345e8ceaa6e5da42a03d223801be907dc5e27241f8c8001a422ebcf1",
+    "copy_sha256": "40760531345e8ceaa6e5da42a03d223801be907dc5e27241f8c8001a422ebcf1"
+  },
+  {
+    "name": "湖泊水库面_标注.xml",
+    "changed": false,
+    "original_sha256": "628e9ea860e8cbc373374a158f4d8dae9c43d7f7fd023ca937c8fa89ef0373db",
+    "copy_sha256": "628e9ea860e8cbc373374a158f4d8dae9c43d7f7fd023ca937c8fa89ef0373db"
+  },
+  {
+    "name": "火车站.xml",
+    "changed": false,
+    "original_sha256": "b001363d7243868aa11978b18f2b40c78cae52cf63b00ec3cf59b9d69c4c56a4",
+    "copy_sha256": "b001363d7243868aa11978b18f2b40c78cae52cf63b00ec3cf59b9d69c4c56a4"
+  },
+  {
+    "name": "火车站_标注.xml",
+    "changed": false,
+    "original_sha256": "bb299a520122ddf5b50ab1fd65d30f7d09004353fa4b4079a60e49797a63aead",
+    "copy_sha256": "bb299a520122ddf5b50ab1fd65d30f7d09004353fa4b4079a60e49797a63aead"
+  },
+  {
+    "name": "省级行政区界线.xml",
+    "changed": false,
+    "original_sha256": "518870dd4d7692192e2f52a8ad37455d3b6a024cab616b6f012c27d45db0932a",
+    "copy_sha256": "518870dd4d7692192e2f52a8ad37455d3b6a024cab616b6f012c27d45db0932a"
+  },
+  {
+    "name": "省级表面注记_标注.xml",
+    "changed": false,
+    "original_sha256": "440612cda2e982c32795020000568ad979cf7bb6df54e5832f9086fe3bf3090c",
+    "copy_sha256": "440612cda2e982c32795020000568ad979cf7bb6df54e5832f9086fe3bf3090c"
+  },
+  {
+    "name": "省道.xml",
+    "changed": true,
+    "original_sha256": "1bd1d91e5ffc93d9d530f3e8e8b6f77ff11edac6d31efd16fdc70b63383b9636",
+    "copy_sha256": "ce437792f528c3242b3ffd5eed8146249ed51d5fc1b87f2c29b0fd3670172e45"
+  },
+  {
+    "name": "省道_代码标注.xml",
+    "changed": false,
+    "original_sha256": "558b1963cab925e93b652a41ff9d6095fc7d234e91ead3b2749e1b19b9f6c626",
+    "copy_sha256": "558b1963cab925e93b652a41ff9d6095fc7d234e91ead3b2749e1b19b9f6c626"
+  },
+  {
+    "name": "等外河流.xml",
+    "changed": false,
+    "original_sha256": "d1ead742a4f6941d76c332d4a06fdb0d2197265148ea5052227cf45f76d1ebf1",
+    "copy_sha256": "d1ead742a4f6941d76c332d4a06fdb0d2197265148ea5052227cf45f76d1ebf1"
+  },
+  {
+    "name": "等外河流_标注.xml",
+    "changed": false,
+    "original_sha256": "e258a47d367fd6b52f4ac159fb18e248534f72080c0adfebabc1020002a279e1",
+    "copy_sha256": "e258a47d367fd6b52f4ac159fb18e248534f72080c0adfebabc1020002a279e1"
+  },
+  {
+    "name": "自然保护区.xml",
+    "changed": false,
+    "original_sha256": "076ae9e8375800d43dbc9f67eafe412b0c863cedd2e01d8f594f0e29b3ecfb3b",
+    "copy_sha256": "076ae9e8375800d43dbc9f67eafe412b0c863cedd2e01d8f594f0e29b3ecfb3b"
+  },
+  {
+    "name": "自然保护区_标注.xml",
+    "changed": false,
+    "original_sha256": "3cd4553ea33993b4c1272d68252724eedbf2f8d46a352353e1db6a6918825c68",
+    "copy_sha256": "3cd4553ea33993b4c1272d68252724eedbf2f8d46a352353e1db6a6918825c68"
+  },
+  {
+    "name": "自然保护区界线.xml",
+    "changed": false,
+    "original_sha256": "d56a7837f8c014c2ae6a8025570347cd32ee30cc47ce511a35660d4f4da8b340",
+    "copy_sha256": "d56a7837f8c014c2ae6a8025570347cd32ee30cc47ce511a35660d4f4da8b340"
+  },
+  {
+    "name": "自然村.xml",
+    "changed": false,
+    "original_sha256": "528e890cc5c06778d03661a926e49f8201a9f370affeb32e583e9961c411013d",
+    "copy_sha256": "528e890cc5c06778d03661a926e49f8201a9f370affeb32e583e9961c411013d"
+  },
+  {
+    "name": "自然村_标注.xml",
+    "changed": false,
+    "original_sha256": "c2ccea07abf2a9d73a1eb4b8eca226d7ba5f73381a62c092d8bb465b381a10d3",
+    "copy_sha256": "c2ccea07abf2a9d73a1eb4b8eca226d7ba5f73381a62c092d8bb465b381a10d3"
+  },
+  {
+    "name": "行政区划面普色.xml",
+    "changed": false,
+    "original_sha256": "49cfddcbb86bde102adbc55f3f4ca5b934aa3feadf4b05f6e214e9e9cf2d7d58",
+    "copy_sha256": "49cfddcbb86bde102adbc55f3f4ca5b934aa3feadf4b05f6e214e9e9cf2d7d58"
+  },
+  {
+    "name": "行政村.xml",
+    "changed": false,
+    "original_sha256": "82ac8774d805902a7d8d3c94baccbbef20ebb246a5908da5959f5923e9e6de17",
+    "copy_sha256": "82ac8774d805902a7d8d3c94baccbbef20ebb246a5908da5959f5923e9e6de17"
+  },
+  {
+    "name": "行政村_标注.xml",
+    "changed": false,
+    "original_sha256": "4f1ca3787573fe1e28491fd343b1b9b651aa2f67efb21a0f691f4a2188347bc4",
+    "copy_sha256": "4f1ca3787573fe1e28491fd343b1b9b651aa2f67efb21a0f691f4a2188347bc4"
+  },
+  {
+    "name": "街区面.xml",
+    "changed": false,
+    "original_sha256": "6893defa6383540e2a9f2ba02c4facbd49915200ead79b8e67fa25e4336ce736",
+    "copy_sha256": "6893defa6383540e2a9f2ba02c4facbd49915200ead79b8e67fa25e4336ce736"
+  },
+  {
+    "name": "街道线.xml",
+    "changed": false,
+    "original_sha256": "bffa8a8150587963789b3193c7bd0cc47ee91a66358cc6c9ffcaad56cb4d0899",
+    "copy_sha256": "bffa8a8150587963789b3193c7bd0cc47ee91a66358cc6c9ffcaad56cb4d0899"
+  },
+  {
+    "name": "连接道.xml",
+    "changed": true,
+    "original_sha256": "c304a58518534681b1a4a93525ce13af7f9f153e39d379bdee1cb9e732ef630f",
+    "copy_sha256": "4d1b7f629582244c1acae87158d2bbdf925c01342e1a8edddccef947925df0e2"
+  },
+  {
+    "name": "铁路休止符.xml",
+    "changed": false,
+    "original_sha256": "b796d82613e0962d54863d0cfe9a89d0846de664ef10895fc508245549e4e611",
+    "copy_sha256": "b796d82613e0962d54863d0cfe9a89d0846de664ef10895fc508245549e4e611"
+  },
+  {
+    "name": "铁路隧道.xml",
+    "changed": false,
+    "original_sha256": "dcc2e85e364e4d10677e2aabb05aa3d9347e448e994b32170bacefbc6cd937b9",
+    "copy_sha256": "dcc2e85e364e4d10677e2aabb05aa3d9347e448e994b32170bacefbc6cd937b9"
+  },
+  {
+    "name": "长城.xml",
+    "changed": false,
+    "original_sha256": "a31105d757f38f1387208ac794c661bab534c8e11a1764ff9d449d35acdbb149",
+    "copy_sha256": "a31105d757f38f1387208ac794c661bab534c8e11a1764ff9d449d35acdbb149"
+  },
+  {
+    "name": "隧道口.xml",
+    "changed": false,
+    "original_sha256": "f6e9b873927f55112fedf67981f3565ff2168b7e367987da9ae51c8aa633dddb",
+    "copy_sha256": "f6e9b873927f55112fedf67981f3565ff2168b7e367987da9ae51c8aa633dddb"
+  },
+  {
+    "name": "高速公路.xml",
+    "changed": true,
+    "original_sha256": "924e53d04ddeeff10dd4dcf59134f832b817e0eceee074206f37dbce2e67ce89",
+    "copy_sha256": "90d0274c8a18b91777288ebd4c31576a48f91191ab263d15c3944d8af37de442"
+  },
+  {
+    "name": "高速公路_代码标注.xml",
+    "changed": false,
+    "original_sha256": "eb9df3bc7fc3fb8216d0cec91cf3949cd75f61900c934c20da998ad0209b081f",
+    "copy_sha256": "eb9df3bc7fc3fb8216d0cec91cf3949cd75f61900c934c20da998ad0209b081f"
+  },
+  {
+    "name": "高速公路_名称标注.xml",
+    "changed": false,
+    "original_sha256": "95299ef9bf8aacbb30475699a466760f22176e43fa47445e4c27e70256dda794",
+    "copy_sha256": "95299ef9bf8aacbb30475699a466760f22176e43fa47445e4c27e70256dda794"
+  },
+  {
+    "name": "高速出入口.xml",
+    "changed": false,
+    "original_sha256": "93997c69afcd1a44cf0047504fbe8d6a699f231dd267b125ccc8b631c31e4b3a",
+    "copy_sha256": "93997c69afcd1a44cf0047504fbe8d6a699f231dd267b125ccc8b631c31e4b3a"
+  },
+  {
+    "name": "高速出入口_标注.xml",
+    "changed": false,
+    "original_sha256": "1b1e7f93477663a350e1378237aa146674d4ba5dbe3d63115dba01a0ec75a43d",
+    "copy_sha256": "1b1e7f93477663a350e1378237aa146674d4ba5dbe3d63115dba01a0ec75a43d"
+  },
+  {
+    "name": "高速铁路.xml",
+    "changed": false,
+    "original_sha256": "c9dfef394fd15b5d8fef98ed679a81a3f243190e04742def1482a236084bf40b",
+    "copy_sha256": "c9dfef394fd15b5d8fef98ed679a81a3f243190e04742def1482a236084bf40b"
+  },
+  {
+    "name": "高速铁路_标注.xml",
+    "changed": false,
+    "original_sha256": "b074951fd748ff3a5935d5dd33fc008a5bb0e2b853f80e157c32e99a8bb02457",
+    "copy_sha256": "b074951fd748ff3a5935d5dd33fc008a5bb0e2b853f80e157c32e99a8bb02457"
+  }
+]

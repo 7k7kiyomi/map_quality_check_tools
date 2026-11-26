@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--样例图层质检方案-->
+<check_list>
+    <scale>
+        <!--与比例尺无关的检查项比例尺处value可以为空-->
+        <value></value>
+        <!-- 质检项1：图名（ID:302） -->
+        <check_item>
+            <name>图名</name>
+            <id>302</id>
+            <severity>中</severity>
+            <rule>
+                <name>字体</name>
+                <value>方正美黑体（K100）</value>
+            </rule>
+            <rule>
+                <name>字大</name>
+                <value>45</value>
+            </rule>
+            <rule>
+                <name>描边宽度</name>
+                <value>1</value>
+                <unit>mm</unit>
+            </rule>
+            <rule>
+                <name>颜色</name>
+                <value>白色</value>
+            </rule>
+            <rule>
+                <name>立体阴影</name>
+                <value>是</value>
+            </rule>
+        </check_item>
+        <!-- 质检项2：图名与行政区划匹配检查（ID:309） -->
+        <check_item>
+            <name>图名与行政区划匹配检查</name>
+            <id>309</id>
+			<severity>高</severity>
+            <rule>
+                <name>图名检查</name>
+                <description>图名与行政区划匹配检查是否匹配</description>
+                <value>图名是否匹配</value>
+            </rule>
+        </check_item>
+    </scale>
+</check_list>

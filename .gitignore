@@ -1,0 +1,31 @@
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+source.env
+database.ini
+data_catalog_connection.ini
+user_login.ini
+*.pem
+*.key
+# Build output and machine settings
+.vs/
+__pycache__/
+*.pyc
+*.vcxproj.user
+*.obj
+*.pdb
+*.dll
+*.exe
+*.lib
+*.exp
+*.tlog
+*.log
+*.bak*
+*.zip
+GeneratedFiles/
+*.dir/
+x64/
+Debug/
+Release/
+tmp/

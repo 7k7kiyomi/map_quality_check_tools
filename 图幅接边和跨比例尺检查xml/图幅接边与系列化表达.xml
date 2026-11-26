@@ -1,0 +1,290 @@
+<?xml version='1.0' encoding='utf-8'?>
+<check_list>
+    <scale>
+        <value />
+        <check_item>
+            <id>501</id>
+            <name>图幅接边与系列化表达</name>
+           <rule>
+    <name>检查对象图层</name>
+    <description>参与图幅接边与系列化表达检查的逻辑图层，线状要素用于几何接边，点线面要素用于属性与样式一致性检查</description>
+    <value>境界线、道路、水系线、水系面</value>
+    <unit />
+</rule>
+            <rule>
+                <name>境界线要素图层</name>
+                <description>用于行政境界接边检查的线要素图层名称</description>
+                <value>境界线</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>政区面要素图层</name>
+                <description>用于政区面套合、碎屑多边形和边界一致性检查的面要素图层名称</description>
+                <value>政区面</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>道路要素图层</name>
+                <description>用于道路跨图幅连续性检查的线要素图层名称</description>
+                <value>道路</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>水系要素图层</name>
+                <description>用于水系跨图幅连续性检查的线要素图层名称</description>
+                <value>水系线</value>
+                <unit />
+            </rule>
+            <rule>
+    <name>水系面要素图层</name>
+    <description>用于面状水体跨图幅表达一致性检查的面要素图层名称</description>
+    <value>水系面</value>
+    <unit />
+</rule>
+           <rule>
+    <name>同类要素名称扩展</name>
+    <description>用于按实际SHP文件名判断同类要素。格式：逻辑类别=实际SHP名称1|实际SHP名称2;实际SHP名称可不写_Point、_LineString、_Polygon等几何后缀。</description>
+    <value>境界线=境界线|国界线|省级行政区界线|市级行政区界线|县级行政区界线|乡镇级行政区界线;道路=道路|高速公路|快速路|国道|省道|县道|乡道|专用公路|连接道|村道;水系线=水系线|水系|一级河流|二级河流|三级河流|四级河流|五级河流|六级河流|常年河|干涸河|等外河流|时令河|沟渠|总干渠|干渠|支渠;水系面=水系面|水域|水域面|河流面|湖泊|水库|湖泊水库|坑塘;政区面=政区面|行政区划面|行政区面|县级行政区面|乡镇级行政区面</value>
+    <unit />
+</rule>
+            <rule>
+                <name>接边缓冲距离</name>
+                <description>从相邻图幅公共边向两侧提取候选接边要素的缓冲距离</description>
+                <value>0.2</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>线要素接边容差</name>
+                <description>判断道路、河流、境界等线状要素是否连续接合的距离容差</description>
+                <value>0.1</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>端点闭合容差</name>
+                <description>判断跨图幅线要素端点是否闭合连接的距离容差</description>
+                <value>0.1</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>跨比例尺覆盖阈值</name>
+                <description>判断小比例尺图幅是否覆盖大比例尺图幅的面积比例阈值，达到该比例后建立跨比例尺检查组</description>
+                <value>0.8</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>图幅关系拓扑容差</name>
+                <description>判断外部图幅索引中相邻、覆盖、相交关系时使用的拓扑容差，单位与图幅索引坐标系一致</description>
+                <value>1e-8</value>
+                <unit>米</unit>
+            </rule>
+            <rule>
+                <name>面积容差下限</name>
+                <description>对称差集结果中小于该面积的碎屑多边形视为正常精度误差，不作为错误输出</description>
+                <value>0.5</value>
+                <unit>平方米</unit>
+            </rule>
+            <rule>
+    <name>属性一致性字段</name>
+    <description>当前 501 主要按实际图层名判断业务类别/等级一致性，本字段为空时不额外做普通属性字段相等比较</description>
+    <value />
+    <unit />
+</rule>
+            <rule>
+                <name>名称字段</name>
+                <description>当前线要素无名称字段，本项暂不配置</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>等级字段</name>
+                <description>当前线要素无等级字段，本项暂不配置</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>编码字段</name>
+                <description>解析数据original_c是路径闭合状态，不能作为业务编码。需要配置真实、稳定的地物编码字段后才执行编码对应。</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>线要素样式一致性字段</name>
+                <description>用于检查线要素符号样式是否一致的字段，多个字段使用顿号或逗号分隔</description>
+                <value>stroked、style_prio、stroke_col、stroke_wid、is_dashed</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>面要素样式一致性字段</name>
+                <description>用于检查面要素符号样式；filled=true 时比较 fill_color，stroked=true 时比较 stroke_col、stroke_wid 和 is_dashed；多个字段使用顿号或逗号分隔</description>
+                <value>closed、filled、fill_color、stroked、style_prio、stroke_col、stroke_wid、is_dashed</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>点要素样式一致性字段</name>
+                <description>用于检查点要素符号样式是否一致的字段，多个字段使用顿号或逗号分隔；当前点要素颜色以 stroke_col 为准</description>
+                <value>stroked、style_prio、stroke_col、stroke_wid、is_dashed</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>符号编码字段</name>
+                <description>用于比对同类同级地物符号样式类别是否一致的字段名称</description>
+                <value>style_prio</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>颜色字段</name>
+                <description>用于比对线状要素线色/描边颜色是否一致的字段名称</description>
+                <value>stroke_col</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>线宽字段</name>
+                <description>用于比对线状要素线宽/描边宽度是否一致的字段名称</description>
+                <value>stroke_wid</value>
+                <unit />
+            </rule>
+            <rule>
+                <name>错误输出等级</name>
+                <description>定义该检查项发现问题后的输出等级，可配置为错误、预警或提示</description>
+                <value>错误</value>
+                <unit />
+            </rule>
+            <rule>
+    <name>符号样式规范来源</name>
+    <description>项目统一颜色与纸面毫米尺寸；与原PDF核验解析属性属于不同检查。</description>
+    <value>挂图参数 - 0815.doc 第5.2.4节、附件3 图式</value>
+    <unit />
+</rule>
+<rule>
+    <name>符号样式规范规则</name>
+    <description>列为key|名称|颜色或允许色集合(/分隔)|图上宽度mm|实际属性字段|实际单位|符号分量|适用范围|主外区角色。主区晕带与外区无晕带不要求相等。复合高速的内填充和外线不能以单条路径替代，分量未解析时保留无法判定；政区发光渐变不得误当作底色。点符号整体大小不按stroke_wid检查。</description>
+    <value>boundary:国界线|国界|K100|0.5|stroke_col|pt|base_stroke|project:gansu_wall_map_0815|any
+boundary:省级行政区界线|省界|K100|0.5|stroke_col|pt|base_stroke|project:gansu_wall_map_0815|any
+boundary:市级行政区界线|市界|K100|0.4|stroke_col|pt|base_stroke|project:gansu_wall_map_0815|any
+boundary:县级行政区界线|县界|K100|0.4|stroke_col|pt|base_stroke|project:gansu_wall_map_0815|any
+boundary:乡镇级行政区界线|乡镇界|K80|0.3|stroke_col|pt|base_stroke|project:gansu_wall_map_0815|any
+road:国道|国道|M80Y10|0.7|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+road:省道|省道|M80Y10|0.4|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+road:县道|县道|M60Y90|0.3|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+road:乡道|乡道|C50M70Y90K10|0.2|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+road:村道|村道|C50M50Y50K20|0.15|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+road:高速公路|高速公路外线|M70Y90|1|stroke_col|pt|outline|project:gansu_wall_map_0815|any
+line:在建高速公路|在建高速公路外线|M70Y90|1|stroke_col|pt|outline|project:gansu_wall_map_0815|any
+line:在建高速|在建高速外线|M70Y90|1|stroke_col|pt|outline|project:gansu_wall_map_0815|any
+road:快速路|快速路外线|C10Y100|1|stroke_col|pt|outline|project:gansu_wall_map_0815|any
+hydrology:河流|河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:一级河流|一级河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:二级河流|二级河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:三级河流|三级河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:四级河流|四级河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:五级河流|五级河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:六级河流|六级河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:等外河流|等外河流|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:时令河|时令河|C100|0.1-0.6|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:总干渠|总干渠|C100|0.3|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:干渠|干渠|C100|0.3|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:支渠|支渠|C100|0.15|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+hydrology:沟渠|沟渠|C100|0.15|stroke_col|pt|single_stroke|project:gansu_wall_map_0815|any
+polygon:水域|水域|C30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+polygon:水系面|水系面|C30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+polygon:河流面|河流面|C30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+polygon:湖泊|湖泊|C30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+polygon:湖泊水库|湖泊水库|C30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+polygon:坑塘|坑塘|C30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+polygon:真形居民地|真形居民地底色|C0M60Y60K30||fill_color|pt|base_fill|project:gansu_wall_map_0815|any
+role:main:polygon:行政区划面普色|主区政区面|C0M0Y40K0/C40M0Y40K0/C0M40Y0K0/C0M30Y40K0||fill_color|pt|base_fill|project:gansu_wall_map_0815|main
+role:main:polygon:政区面|主区政区面|C0M0Y40K0/C40M0Y40K0/C0M40Y0K0/C0M30Y40K0||fill_color|pt|base_fill|project:gansu_wall_map_0815|main
+role:external:polygon:外区普色|外区普色|C5M0Y0K0||fill_color|pt|base_fill|project:gansu_wall_map_0815|external
+point:山峰|山峰|M40Y100K55||stroke_col|pt|symbol_stroke|project:gansu_wall_map_0815|any
+point:高程点|高程点|M40Y100K55||stroke_col|pt|symbol_stroke|project:gansu_wall_map_0815|any
+point:火车站|火车站|C40M80K50||stroke_col|pt|symbol_stroke|project:gansu_wall_map_0815|any
+point:泉|泉|C100||stroke_col|pt|symbol_stroke|project:gansu_wall_map_0815|any
+point:井|井|C100||stroke_col|pt|symbol_stroke|project:gansu_wall_map_0815|any
+point:不依比例水库|不依比例水库|C100||stroke_col|pt|symbol_stroke|project:gansu_wall_map_0815|any</value>
+    <unit />
+</rule>
+<rule>
+    <name>河流分级注记规则来源</name>
+    <description>河流等级、名称注记字号规则来源</description>
+    <value>挂图参数 - 0815.doc 附件1：河流分级表</value>
+    <unit />
+</rule>
+
+<rule>
+    <name>河流等级字段</name>
+    <description>用于读取河流等级或表达分级的字段名，多个字段使用顿号或逗号分隔，优先使用靠前字段</description>
+    <value>河流等级、分级</value>
+    <unit />
+</rule>
+
+<rule>
+    <name>河流注记分级规则</name>
+    <description>用于检查河流名称注记大小。格式：等级|注记字号mm；字号可写固定值或范围。</description>
+    <value>
+一级|5-6
+二级|4-5
+三级|3.5-4.0
+四级|3.0-3.5
+五级|2.5-3.0
+六级及以下|2.25-2.5
+总干渠|3.5
+干渠|3.0
+其他渠道|2.5
+水库|3.0-3.5
+湖泊|3.5
+</value>
+    <unit>毫米</unit>
+</rule>
+<rule>
+    <name>山脉山岭注记规则来源</name>
+    <description>山脉、山岭分级注记字号规则来源</description>
+    <value>挂图参数 - 0815.doc 附件2：山脉，山岭</value>
+    <unit />
+</rule>
+
+<rule>
+    <name>山脉山岭注记分级规则</name>
+    <description>用于检查山脉、山岭名称注记大小。格式：类型|等级|注记字号mm。</description>
+    <value>
+山脉|一级|5
+山脉|二级|4
+山岭|一级|5
+山岭|二级|4
+</value>
+    <unit>毫米</unit>
+</rule>
+<rule>
+  <name>跨比例尺弱支撑分数阈值</name>
+  <value>60</value>
+  <unit>分</unit>
+</rule>
+            <rule>
+                <name>特征点接边容差</name>
+                <description>跨比例尺点要素的位置支撑容差，沿用本检查项线要素接边容差的毫米口径。</description>
+                <value>0.1</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>跨比例尺最大未支撑连续线段</name>
+                <description>跨比例尺线要素允许的最长连续未支撑区段；初值沿用现有线要素接边容差，需按数据规范复核。</description>
+                <value>0.1</value>
+                <unit>毫米</unit>
+            </rule>
+            <rule>
+                <name>跨比例尺稳定属性字段</name>
+                <description>仅允许明确同一地物的稳定业务字段，如真实名称、道路编号。不得配置颜色、线宽、字号、符号编号、表达分级或original_c；无有效字段时如实报告未执行。</description>
+                <value />
+                <unit />
+            </rule>
+            <rule>
+                <name>跨比例尺面聚合规则</name>
+                <description>是否允许多个同业务类别、身份兼容的较大比例尺面共同支撑一个较小比例尺面；没有明确业务规则时保持关闭。</description>
+                <value>false</value>
+                <unit />
+            </rule>
+        <rule><name>项目图式标识</name><description>本规则文件绑定挂图参数0815项目图式；只有属于该项目及适用版本的图幅才应选用。统一图式不要求为各比例尺重复配置；不匹配的项目规则不能确认错误。</description><value>gansu_wall_map_0815</value><unit /></rule><rule><name>项目图式来源</name><description>规范依据为第5.2.4节与附件3；主外区差异和复杂符号须按表达角色及符号组成处理。</description><value>E:\GSZJPlugins\质检参数0815\挂图参数 - 0815.doc; SHA256=004263ecfd21f70891fcaa1eba0a32ac210d727ce71ad87ae915dacc86cdc5df</value><unit /></rule><rule><name>主区角色图层</name><description>仅此明确配置的实际面图层可提供主区角色；不得根据当前主检地图名把全部要素判为主区。边界等图层需显式map_role属性或确认上下文，未知角色不猜测。</description><value>行政区划面普色、政区面</value><unit /></rule><rule><name>外区角色图层</name><description>此实际图层提供外区角色。主区和外区不直接比较样式字段相等，分别检查适用图式。</description><value>外区普色</value><unit /></rule></check_item>
+      
+       
+       
+    </scale>
+</check_list>
